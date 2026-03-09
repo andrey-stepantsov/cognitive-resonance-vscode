@@ -129,6 +129,11 @@ export default function App() {
         setIsViewMode(true);
         setHistoryFilename(message.filename || 'Unknown');
         setIsLoading(false);
+      } else if (message.type === 'resume_history') {
+        setMessages(message.data.messages || []);
+        setIsViewMode(false);
+        setHistoryFilename(message.filename || 'Unknown');
+        setIsLoading(false);
       }
     };
 
@@ -179,15 +184,7 @@ export default function App() {
       }))
     };
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `cognitive-resonance-history-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    vscode.postMessage({ type: 'save_history', data: exportData });
   };
 
   return (

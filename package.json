@@ -21,6 +21,10 @@
         "title": "Cognitive Resonance: Set Gemini API Key"
       },
       {
+        "command": "cognitive-resonance.loadSession",
+        "title": "Cognitive Resonance: Resume Session"
+      },
+      {
         "command": "cognitive-resonance.viewHistory",
         "title": "Cognitive Resonance: View History"
       }
