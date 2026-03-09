@@ -66,6 +66,9 @@ export default function App() {
   const [selectedTurnIndex, setSelectedTurnIndex] = useState<number | null>(null);
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
+  
+  const [availableModels, setAvailableModels] = useState<any[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.1-pro-preview');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -103,6 +106,21 @@ export default function App() {
         console.error("Extension Host Error:", message.error);
         setMessages(prev => [...prev, { role: 'model', content: "Error: Could not process request from Extension Host." }]);
         setIsLoading(false);
+      } else if (message.type === 'models_loaded') {
+        const models = message.data || message.models || [];
+        // Optional: filter out models that are definitely not text/chat models if we can tell, 
+        // but for now, we just take the list sent by the extension host.
+        setAvailableModels(models);
+        
+        // If the currently selected model is not in the list, set it to generic "None" to let the user pick
+        // or just set it to the first available if they haven't picked.
+        setSelectedModel(prev => {
+           if (models.length > 0 && !models.find((m: any) => m.name === prev || m.name === `models/${prev}`)) {
+              // The model is not in the list. Force user to choose.
+              return '';
+           }
+           return prev;
+        });
       }
     };
 
@@ -135,6 +153,7 @@ export default function App() {
 
     vscode.postMessage({
       type: 'prompt',
+      model: selectedModel,
       history: newMessages,
       responseSchema: responseSchema
     });
@@ -220,7 +239,20 @@ export default function App() {
             <BrainCircuit className="w-6 h-6 text-indigo-500" />
             <h1 className="text-lg lg:text-xl font-semibold tracking-tight whitespace-nowrap hidden sm:block">Cognitive Resonance</h1>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
+            <select 
+              value={selectedModel} 
+              onChange={(e) => setSelectedModel(e.target.value)}
+              disabled={availableModels.length === 0}
+              className="bg-zinc-800 text-xs text-zinc-300 border border-zinc-700/50 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 max-w-[120px] sm:max-w-[200px]"
+              title="Select Gemini Model"
+            >
+              {availableModels.length === 0 && <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>}
+              {availableModels.length > 0 && selectedModel === '' && <option value="" disabled>Select a Model...</option>}
+              {availableModels.map(m => (
+                <option key={m.name} value={m.name.replace('models/', '')}>{m.displayName || m.name.replace('models/', '')}</option>
+              ))}
+            </select>
             <button 
               onClick={handleDownloadHistory}
               disabled={messages.length === 0}
@@ -294,17 +326,24 @@ export default function App() {
 
         <div className="p-4 bg-zinc-900/50 border-t border-zinc-800/50">
           <form onSubmit={handleSubmit} className="relative flex items-center">
+            {selectedModel === '' && (
+              <div className="absolute -top-10 left-0 w-full text-center">
+                <span className="bg-amber-500/10 text-amber-400 text-xs px-3 py-1.5 rounded-full border border-amber-500/20">
+                  Please select an available model from the top menu to continue.
+                </span>
+              </div>
+            )}
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Send a message..."
-              disabled={isLoading}
+              disabled={isLoading || selectedModel === ''}
               className="w-full bg-zinc-950 border border-zinc-700/50 rounded-xl pl-4 pr-12 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all disabled:opacity-50"
             />
             <button
               type="submit"
-              disabled={!input.trim() || isLoading}
+              disabled={!input.trim() || isLoading || selectedModel === ''}
               className="absolute right-2 p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:hover:bg-indigo-600"
             >
               <Send className="w-4 h-4" />

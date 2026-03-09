@@ -43,6 +43,22 @@ export function activate(context: vscode.ExtensionContext) {
 
     const ai = new GoogleGenAI({ apiKey });
 
+    // Fetch available models in the background
+    (async () => {
+      try {
+        const modelsResponse = await ai.models.list();
+        const modelList = [];
+        for await (const m of modelsResponse) {
+           // We only want models that support generateContent (preventing embeddings-only models if possible, 
+           // but `name`, `displayName`, `description` is sufficient for the UI).
+           modelList.push({ name: m.name, displayName: m.displayName, description: m.description });
+        }
+        panel.webview.postMessage({ type: 'models_loaded', models: modelList });
+      } catch (err) {
+        console.error("Failed to fetch Google Gen AI models", err);
+      }
+    })();
+
     // Handle messages from the webview
     panel.webview.onDidReceiveMessage(
       async message => {
@@ -50,7 +66,7 @@ export function activate(context: vscode.ExtensionContext) {
           case 'prompt':
             try {
               const response = await ai.models.generateContent({
-                model: "gemini-3.1-pro-preview",
+                model: message.model || "gemini-3.1-pro-preview",
                 contents: message.history.map((m: any) => ({
                   role: m.role,
                   parts: [{ text: m.content }]
