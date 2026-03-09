@@ -1,0 +1,43 @@
+{
+  "name": "cognitive-resonance",
+  "displayName": "Cognitive Resonance",
+  "description": "Port of the Google AI Studio Cognitive Resonance prototype.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:cognitive-resonance.start"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cognitive-resonance.start",
+        "title": "Cognitive Resonance: Start Session"
+      },
+      {
+        "command": "cognitive-resonance.setApiKey",
+        "title": "Cognitive Resonance: Set Gemini API Key"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "build:webview": "cd webview-ui && npm install && npm run build",
+    "build:all": "npm run compile && npm run build:webview"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "18.x",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@google/genai": "^1.29.0"
+  }
+}

@@ -1,0 +1,128 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.activate = activate;
+exports.deactivate = deactivate;
+const vscode = __importStar(require("vscode"));
+const genai_1 = require("@google/genai");
+const path = __importStar(require("path"));
+function activate(context) {
+    console.log('Cognitive Resonance extension is now active!');
+    let setApiKeyCommand = vscode.commands.registerCommand('cognitive-resonance.setApiKey', async () => {
+        const defaultVal = await context.secrets.get('gemini-api-key');
+        const apiKey = await vscode.window.showInputBox({
+            prompt: 'Enter your Gemini API Key',
+            ignoreFocusOut: true,
+            password: true,
+            value: defaultVal || ''
+        });
+        if (apiKey) {
+            await context.secrets.store('gemini-api-key', apiKey);
+            vscode.window.showInformationMessage('Gemini API Key saved securely.');
+        }
+    });
+    let startSessionCommand = vscode.commands.registerCommand('cognitive-resonance.start', async () => {
+        const apiKey = await context.secrets.get('gemini-api-key');
+        if (!apiKey) {
+            vscode.window.showErrorMessage('Gemini API Key not set. Please run "Cognitive Resonance: Set Gemini API Key" first.');
+            return;
+        }
+        const panel = vscode.window.createWebviewPanel('cognitiveResonance', 'Cognitive Resonance', vscode.ViewColumn.One, {
+            enableScripts: true,
+            retainContextWhenHidden: true,
+            localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-ui', 'dist'))]
+        });
+        panel.webview.html = getWebviewContent(panel.webview, context.extensionPath);
+        const ai = new genai_1.GoogleGenAI({ apiKey });
+        // Handle messages from the webview
+        panel.webview.onDidReceiveMessage(async (message) => {
+            switch (message.type) {
+                case 'prompt':
+                    try {
+                        const response = await ai.models.generateContent({
+                            model: "gemini-3.1-pro-preview",
+                            contents: message.history.map((m) => ({
+                                role: m.role,
+                                parts: [{ text: m.content }]
+                            })),
+                            config: {
+                                systemInstruction: "You are an AI assistant. Along with your reply, you must analyze your own internal state. Calculate your 'dissonance score' (0-100) representing your uncertainty, conflicting information, or cognitive load. Also, extract a semantic graph of the concepts you are currently processing.",
+                                responseMimeType: "application/json",
+                                responseSchema: message.responseSchema
+                            }
+                        });
+                        const jsonStr = response.text;
+                        if (jsonStr) {
+                            const data = JSON.parse(jsonStr);
+                            panel.webview.postMessage({ type: 'response', data });
+                        }
+                    }
+                    catch (error) {
+                        console.error("Error generating response:", error);
+                        panel.webview.postMessage({ type: 'error', error: error.message });
+                    }
+                    return;
+            }
+        }, undefined, context.subscriptions);
+    });
+    context.subscriptions.push(setApiKeyCommand, startSessionCommand);
+}
+function getWebviewContent(webview, extensionPath) {
+    const distPath = path.join(extensionPath, 'webview-ui', 'dist');
+    // Note: we'll configure vite to output index.js and index.css without hashes
+    const scriptUri = webview.asWebviewUri(vscode.Uri.file(path.join(distPath, 'assets', 'index.js')));
+    const styleUri = webview.asWebviewUri(vscode.Uri.file(path.join(distPath, 'assets', 'index.css')));
+    return `
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Cognitive Resonance</title>
+        <link href="${styleUri}" rel="stylesheet">
+      </head>
+      <body>
+        <div id="root"></div>
+        <script>
+          const vscode = acquireVsCodeApi();
+          window.vscode = vscode;
+        </script>
+        <script type="module" src="${scriptUri}"></script>
+      </body>
+    </html>
+  `;
+}
+function deactivate() { }
+//# sourceMappingURL=extension.js.map
