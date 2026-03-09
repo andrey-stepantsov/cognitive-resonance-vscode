@@ -163,8 +163,22 @@ function setupChatPanel(panel: vscode.WebviewPanel, context: vscode.ExtensionCon
       const modelsResponse = await ai.models.list();
       const modelList = [];
       for await (const m of modelsResponse) {
-         // We only want models that support generateContent (preventing embeddings-only models if possible, 
-         // but `name`, `displayName`, `description` is sufficient for the UI).
+         if (!m.name) continue;
+         const name = m.name.toLowerCase();
+         
+         // Only include primary Gemini generative models
+         if (!name.includes('gemini-')) continue;
+         
+         // Exclude legacy single-turn vision models
+         if (name.includes('-vision')) continue;
+         
+         // Exclude specialized and embedding models
+         if (name.includes('embedding') || name.includes('aqa') || name.includes('audio') || name.includes('learn')) continue;
+         if (name.includes('bison') || name.includes('gecko')) continue;
+         
+         // Exclude nano models as they generally struggle with strict, large JSON schema enforcement required for the semantic graph
+         if (name.includes('nano')) continue;
+
          modelList.push({ name: m.name, displayName: m.displayName, description: m.description });
       }
       panel.webview.postMessage({ type: 'models_loaded', models: modelList });
