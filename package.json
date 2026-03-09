@@ -9,9 +9,6 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCommand:cognitive-resonance.start"
-  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
@@ -22,6 +19,10 @@
       {
         "command": "cognitive-resonance.setApiKey",
         "title": "Cognitive Resonance: Set Gemini API Key"
+      },
+      {
+        "command": "cognitive-resonance.viewHistory",
+        "title": "Cognitive Resonance: View History"
       }
     ]
   },

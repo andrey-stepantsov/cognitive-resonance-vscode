@@ -70,6 +70,9 @@ export default function App() {
   const [availableModels, setAvailableModels] = useState<any[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('gemini-3.1-pro-preview');
 
+  const [isViewMode, setIsViewMode] = useState(false);
+  const [historyFilename, setHistoryFilename] = useState('');
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -121,6 +124,11 @@ export default function App() {
            }
            return prev;
         });
+      } else if (message.type === 'load_history') {
+        setMessages(message.data.messages || []);
+        setIsViewMode(true);
+        setHistoryFilename(message.filename || 'Unknown');
+        setIsLoading(false);
       }
     };
 
@@ -237,30 +245,36 @@ export default function App() {
           </div>
           <div className="flex items-center gap-3 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
             <BrainCircuit className="w-6 h-6 text-indigo-500" />
-            <h1 className="text-lg lg:text-xl font-semibold tracking-tight whitespace-nowrap hidden sm:block">Cognitive Resonance</h1>
+            <h1 className="text-lg lg:text-xl font-semibold tracking-tight whitespace-nowrap hidden sm:block">
+              {isViewMode ? `Resonance History: ${historyFilename}` : 'Cognitive Resonance'}
+            </h1>
           </div>
           <div className="flex items-center gap-2">
-            <select 
-              value={selectedModel} 
-              onChange={(e) => setSelectedModel(e.target.value)}
-              disabled={availableModels.length === 0}
-              className="bg-zinc-800 text-xs text-zinc-300 border border-zinc-700/50 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 max-w-[120px] sm:max-w-[200px]"
-              title="Select Gemini Model"
-            >
-              {availableModels.length === 0 && <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>}
-              {availableModels.length > 0 && selectedModel === '' && <option value="" disabled>Select a Model...</option>}
-              {availableModels.map(m => (
-                <option key={m.name} value={m.name.replace('models/', '')}>{m.displayName || m.name.replace('models/', '')}</option>
-              ))}
-            </select>
-            <button 
-              onClick={handleDownloadHistory}
-              disabled={messages.length === 0}
-              className="p-2 text-zinc-400 hover:text-zinc-100 disabled:opacity-50 disabled:hover:text-zinc-400 transition-colors"
-              title="Download Chat History"
-            >
-              <Download className="w-5 h-5" />
-            </button>
+            {!isViewMode && (
+              <>
+                <select 
+                  value={selectedModel} 
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  disabled={availableModels.length === 0}
+                  className="bg-zinc-800 text-xs text-zinc-300 border border-zinc-700/50 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 max-w-[120px] sm:max-w-[200px]"
+                  title="Select Gemini Model"
+                >
+                  {availableModels.length === 0 && <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>}
+                  {availableModels.length > 0 && selectedModel === '' && <option value="" disabled>Select a Model...</option>}
+                  {availableModels.map(m => (
+                    <option key={m.name} value={m.name.replace('models/', '')}>{m.displayName || m.name.replace('models/', '')}</option>
+                  ))}
+                </select>
+                <button 
+                  onClick={handleDownloadHistory}
+                  disabled={messages.length === 0}
+                  className="p-2 text-zinc-400 hover:text-zinc-100 disabled:opacity-50 disabled:hover:text-zinc-400 transition-colors"
+                  title="Download Chat History"
+                >
+                  <Download className="w-5 h-5" />
+                </button>
+              </>
+            )}
             <button className="lg:hidden p-2 -mr-2 text-zinc-400 hover:text-zinc-100" onClick={() => setIsRightSidebarOpen(true)}>
               <Network className="w-5 h-5" />
             </button>
@@ -324,32 +338,34 @@ export default function App() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="p-4 bg-zinc-900/50 border-t border-zinc-800/50">
-          <form onSubmit={handleSubmit} className="relative flex items-center">
-            {selectedModel === '' && (
-              <div className="absolute -top-10 left-0 w-full text-center">
-                <span className="bg-amber-500/10 text-amber-400 text-xs px-3 py-1.5 rounded-full border border-amber-500/20">
-                  Please select an available model from the top menu to continue.
-                </span>
-              </div>
-            )}
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Send a message..."
-              disabled={isLoading || selectedModel === ''}
-              className="w-full bg-zinc-950 border border-zinc-700/50 rounded-xl pl-4 pr-12 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || isLoading || selectedModel === ''}
-              className="absolute right-2 p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:hover:bg-indigo-600"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </form>
-        </div>
+        {!isViewMode && (
+          <div className="p-4 bg-zinc-900/50 border-t border-zinc-800/50">
+            <form onSubmit={handleSubmit} className="relative flex items-center">
+              {selectedModel === '' && (
+                <div className="absolute -top-10 left-0 w-full text-center">
+                  <span className="bg-amber-500/10 text-amber-400 text-xs px-3 py-1.5 rounded-full border border-amber-500/20">
+                    Please select an available model from the top menu to continue.
+                  </span>
+                </div>
+              )}
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Send a message..."
+                disabled={isLoading || selectedModel === ''}
+                className="w-full bg-zinc-950 border border-zinc-700/50 rounded-xl pl-4 pr-12 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || isLoading || selectedModel === ''}
+                className="absolute right-2 p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:hover:bg-indigo-600"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </form>
+          </div>
+        )}
       </div>
 
       {/* Right Sidebar: Semantic Graph */}

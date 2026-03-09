@@ -38,6 +38,7 @@ exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
 const genai_1 = require("@google/genai");
 const path = __importStar(require("path"));
+const fs = __importStar(require("fs"));
 function activate(context) {
     console.log('Cognitive Resonance extension is now active!');
     let setApiKeyCommand = vscode.commands.registerCommand('cognitive-resonance.setApiKey', async () => {
@@ -113,7 +114,46 @@ function activate(context) {
             }
         }, undefined, context.subscriptions);
     });
-    context.subscriptions.push(setApiKeyCommand, startSessionCommand);
+    let viewHistoryCommand = vscode.commands.registerCommand('cognitive-resonance.viewHistory', async () => {
+        const fileUris = await vscode.window.showOpenDialog({
+            canSelectMany: false,
+            openLabel: 'Open History',
+            filters: {
+                'JSON': ['json']
+            }
+        });
+        if (!fileUris || fileUris.length === 0) {
+            return;
+        }
+        const fileUri = fileUris[0];
+        const filename = path.basename(fileUri.fsPath);
+        try {
+            const fileContent = await fs.promises.readFile(fileUri.fsPath, 'utf8');
+            const data = JSON.parse(fileContent);
+            if (!data || !Array.isArray(data.messages)) {
+                vscode.window.showErrorMessage('Invalid history file format. Expected an array of messages.');
+                return;
+            }
+            const panel = vscode.window.createWebviewPanel('cognitiveResonanceHistory', `Resonance History: ${filename}`, vscode.ViewColumn.One, {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+                localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-ui', 'dist'))]
+            });
+            panel.webview.html = getWebviewContent(panel.webview, context.extensionPath);
+            // We need to wait for the webview to load before posting the message.
+            // Since we don't have a reliable 'ready' event from the webview yet, 
+            // a short timeout or waiting for a 'ready' message works. 
+            // For now, post immediately and also set a slight delay to ensure it's picked up.
+            setTimeout(() => {
+                panel.webview.postMessage({ type: 'load_history', data, filename });
+            }, 500);
+        }
+        catch (error) {
+            console.error("Error reading history file:", error);
+            vscode.window.showErrorMessage('Failed to read history file: ' + error.message);
+        }
+    });
+    context.subscriptions.push(setApiKeyCommand, startSessionCommand, viewHistoryCommand);
 }
 function getWebviewContent(webview, extensionPath) {
     const distPath = path.join(extensionPath, 'webview-ui', 'dist');
