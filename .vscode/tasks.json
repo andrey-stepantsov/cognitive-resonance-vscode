@@ -4,10 +4,8 @@
     {
       "type": "npm",
       "script": "build:all",
-      "problemMatcher": "$tsc",
-      "isBackground": true,
       "presentation": {
-        "reveal": "never",
+        "reveal": "always",
         "panel": "dedicated"
       },
       "group": {
