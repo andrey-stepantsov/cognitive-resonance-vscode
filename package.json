@@ -2,7 +2,7 @@
   "name": "cognitive-resonance",
   "displayName": "Cognitive Resonance",
   "description": "Port of the Google AI Studio Cognitive Resonance prototype.",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -40,6 +40,10 @@
       {
         "command": "cognitive-resonance.viewHistory",
         "title": "Cognitive Resonance: View History"
+      },
+      {
+        "command": "cognitive-resonance.exportDiagnostics",
+        "title": "Cognitive Resonance: Export Diagnostics"
       }
     ]
   },

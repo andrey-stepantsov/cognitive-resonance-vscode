@@ -40,8 +40,10 @@ const genai_1 = require("@google/genai");
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const ai_utils_1 = require("./ai-utils");
+const diagnostics_1 = require("./diagnostics");
 function activate(context) {
     console.log('Cognitive Resonance extension is now active!');
+    const storagePath = context.globalStorageUri.fsPath;
     let setApiKeyCommand = vscode.commands.registerCommand('cognitive-resonance.setApiKey', async () => {
         const defaultVal = await context.secrets.get('gemini-api-key');
         const apiKey = await vscode.window.showInputBox({
@@ -104,6 +106,7 @@ function activate(context) {
         }
         catch (error) {
             console.error("Error reading history file:", error);
+            (0, diagnostics_1.appendDiagnostic)(storagePath, { level: 'error', context: 'viewHistory', message: (0, ai_utils_1.formatApiError)(error) });
             vscode.window.showErrorMessage('Failed to read history file: ' + error.message);
         }
     });
@@ -145,12 +148,24 @@ function activate(context) {
         }
         catch (error) {
             console.error("Error reading history file:", error);
+            (0, diagnostics_1.appendDiagnostic)(storagePath, { level: 'error', context: 'loadSession', message: (0, ai_utils_1.formatApiError)(error) });
             vscode.window.showErrorMessage('Failed to read history file: ' + error.message);
         }
     });
-    context.subscriptions.push(setApiKeyCommand, startSessionCommand, loadSessionCommand, viewHistoryCommand);
+    let exportDiagnosticsCommand = vscode.commands.registerCommand('cognitive-resonance.exportDiagnostics', async () => {
+        const log = (0, diagnostics_1.readDiagnosticLog)(storagePath);
+        if (!log.trim()) {
+            vscode.window.showInformationMessage('No diagnostic entries recorded.');
+            return;
+        }
+        const report = (0, diagnostics_1.formatDiagnosticReport)(log);
+        await vscode.env.clipboard.writeText(report);
+        vscode.window.showInformationMessage(`Diagnostics report copied to clipboard (${log.trim().split('\n').length} entries).`);
+    });
+    context.subscriptions.push(setApiKeyCommand, startSessionCommand, loadSessionCommand, viewHistoryCommand, exportDiagnosticsCommand);
 }
 function setupChatPanel(panel, context, apiKey) {
+    const storagePath = context.globalStorageUri.fsPath;
     panel.webview.html = getWebviewContent(panel.webview, context.extensionPath);
     const ai = new genai_1.GoogleGenAI({ apiKey });
     // Fetch available models in the background
@@ -166,6 +181,7 @@ function setupChatPanel(panel, context, apiKey) {
         }
         catch (err) {
             console.error("Failed to fetch Google Gen AI models", err);
+            (0, diagnostics_1.appendDiagnostic)(storagePath, { level: 'error', context: 'fetchModels', message: (0, ai_utils_1.formatApiError)(err) });
         }
     })();
     // Handle messages from the webview
@@ -195,6 +211,7 @@ function setupChatPanel(panel, context, apiKey) {
                     catch (error) {
                         console.error("Error generating response:", error);
                         const errorMessage = (0, ai_utils_1.formatApiError)(error);
+                        (0, diagnostics_1.appendDiagnostic)(storagePath, { level: 'error', context: 'generateContent', message: errorMessage, detail: error.stack || error });
                         panel.webview.postMessage({ type: 'error', error: errorMessage });
                     }
                     return;
@@ -212,6 +229,7 @@ function setupChatPanel(panel, context, apiKey) {
                     }
                     catch (err) {
                         console.error("Failed to save session history:", err);
+                        (0, diagnostics_1.appendDiagnostic)(storagePath, { level: 'error', context: 'saveHistory', message: (0, ai_utils_1.formatApiError)(err) });
                         vscode.window.showErrorMessage('Failed to save session history: ' + err.message);
                     }
                     return;
@@ -222,6 +240,7 @@ function setupChatPanel(panel, context, apiKey) {
             // (which would surface as the opaque "Could not process request from Extension Host" error)
             console.error("Unexpected error in message handler:", unexpectedError);
             const errorMessage = (0, ai_utils_1.formatApiError)(unexpectedError);
+            (0, diagnostics_1.appendDiagnostic)(storagePath, { level: 'error', context: 'messageHandler', message: errorMessage, detail: unexpectedError.stack || unexpectedError });
             panel.webview.postMessage({ type: 'error', error: errorMessage });
         }
     }, undefined, context.subscriptions);
