@@ -47,36 +47,45 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        code({ node, inline, className, children, ...props }: any) {
+        pre({ children }: any) {
+          // In react-markdown v10, block code is <pre><code>. 
+          // Return children directly so our code() handler renders the block.
+          return <>{children}</>;
+        },
+        code({ node, className, children, ...props }: any) {
           const match = /language-(\w+)/.exec(className || '');
           const language = match ? match[1] : '';
           const codeStr = String(children).replace(/\n$/, '');
 
-          if (!inline && language === 'mermaid') {
+          // Block-level code has a className like "language-xxx"
+          if (match && language === 'mermaid') {
             return (
               <MermaidDiagram chart={codeStr} />
             );
           }
 
-          return !inline && match ? (
-            <div className="rounded-md overflow-hidden my-4 border border-zinc-700/50">
-               <div className="bg-zinc-800/80 px-3 py-1.5 text-xs text-zinc-400 border-b border-zinc-700/50 flex justify-between items-center">
-                 <span>{language}</span>
-                 <CopyButton text={codeStr} />
-               </div>
-              <SyntaxHighlighter
-                {...props}
-                style={vscDarkPlus as any}
-                language={match[1]}
-                PreTag="div"
-                customStyle={{ margin: 0, padding: '1rem', background: 'transparent' }}
-                className="!m-0 !bg-transparent text-sm"
-              >
-                {codeStr}
-              </SyntaxHighlighter>
-            </div>
-          ) : (
-            <code {...props} className={`${className} bg-zinc-800 text-zinc-200 px-1 py-0.5 rounded text-sm font-mono`}>
+          if (match) {
+            return (
+              <div className="rounded-md overflow-hidden my-4 border border-zinc-700/50">
+                 <div className="bg-zinc-800/80 px-3 py-1.5 text-xs text-zinc-400 border-b border-zinc-700/50 flex justify-between items-center">
+                   <span>{language}</span>
+                   <CopyButton text={codeStr} />
+                 </div>
+                <SyntaxHighlighter
+                  style={vscDarkPlus as any}
+                  language={match[1]}
+                  PreTag="div"
+                  customStyle={{ margin: 0, padding: '1rem', background: '#1e1e2e' }}
+                  className="!m-0 text-sm"
+                >
+                  {codeStr}
+                </SyntaxHighlighter>
+              </div>
+            );
+          }
+
+          return (
+            <code {...props} className={`${className || ''} bg-zinc-800 text-zinc-200 px-1 py-0.5 rounded text-sm font-mono`}>
               {children}
             </code>
           );
@@ -87,3 +96,4 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
     </ReactMarkdown>
   );
 };
+
