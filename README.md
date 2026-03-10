@@ -26,8 +26,8 @@ You must have a valid **Gemini API Key**. Get one for free at [Google AI Studio]
 If you wish to clone and build this extension yourself:
 
 ```bash
-git clone https://github.com/yourusername/cognitive-resonance.git
-cd cognitive-resonance
+git clone https://github.com/andrey-stepantsov/cognitive-resonance-vscode.git
+cd cognitive-resonance-vscode
 npm install
 npm run build:all
 ```

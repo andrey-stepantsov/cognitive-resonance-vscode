@@ -9,10 +9,10 @@
   "categories": [
     "Other"
   ],
-  "publisher": "YOUR_PUBLISHER_ID_HERE",
+  "publisher": "astepantsov",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/cognitive-resonance.git"
+    "url": "https://github.com/andrey-stepantsov/cognitive-resonance-vscode.git"
   },
   "icon": "icon.png",
   "keywords": [
