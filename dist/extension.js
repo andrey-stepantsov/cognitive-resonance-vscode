@@ -145,17 +145,19 @@ function setupChatPanel(panel, context, apiKey) {
     }
     panel.webview.html = getWebviewContent(panel.webview, context.extensionPath);
     const ai = new genai_1.GoogleGenAI({ apiKey });
-    // Load saved gems from file and send to webview
-    let savedGems = [];
-    try {
-        if (fs.existsSync(gemsFilePath)) {
-            savedGems = JSON.parse(fs.readFileSync(gemsFilePath, 'utf8'));
+    // Load saved gems from file
+    const loadGems = () => {
+        let savedGems = [];
+        try {
+            if (fs.existsSync(gemsFilePath)) {
+                savedGems = JSON.parse(fs.readFileSync(gemsFilePath, 'utf8'));
+            }
         }
-    }
-    catch (err) {
-        console.error("Failed to parse gems file.", err);
-    }
-    panel.webview.postMessage({ type: 'gems_loaded', gems: savedGems });
+        catch (err) {
+            console.error("Failed to parse gems file.", err);
+        }
+        return savedGems;
+    };
     // Load all sessions
     const broadcastSessions = async () => {
         try {
@@ -185,9 +187,8 @@ function setupChatPanel(panel, context, apiKey) {
             console.error("Failed to read sessions dir", err);
         }
     };
-    broadcastSessions();
-    // Fetch available models in the background
-    (async () => {
+    // Fetch available models
+    const fetchModels = async () => {
         try {
             const modelsResponse = await ai.models.list();
             const rawModels = [];
@@ -201,11 +202,17 @@ function setupChatPanel(panel, context, apiKey) {
             console.error("Failed to fetch Google Gen AI models", err);
             (0, diagnostics_1.appendDiagnostic)(storagePath, { level: 'error', context: 'fetchModels', message: (0, ai_utils_1.formatApiError)(err) });
         }
-    })();
+    };
     // Handle messages from the webview
     panel.webview.onDidReceiveMessage(async (message) => {
         try {
             switch (message.type) {
+                case 'webview_ready':
+                    // Send initial data now that webview is listening
+                    panel.webview.postMessage({ type: 'gems_loaded', gems: loadGems() });
+                    broadcastSessions();
+                    fetchModels();
+                    return;
                 case 'prompt':
                     try {
                         const baseInstruction = "You are an AI assistant. Along with your reply, you must analyze your own internal state. Calculate your 'dissonance score' (0-100) representing your uncertainty, conflicting information, or cognitive load. Also, extract a semantic graph of the concepts you are currently processing. FORMATTING: Always use fenced code blocks with language tags for code (e.g. ```python). For diagrams, always use ```mermaid fenced code blocks with proper newlines between nodes — never put mermaid syntax inline.";

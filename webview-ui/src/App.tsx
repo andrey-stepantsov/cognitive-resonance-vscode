@@ -175,6 +175,12 @@ export default function App() {
       } else if (message.type === 'sessions_loaded') {
         const list = message.sessions || [];
         setSessions(list);
+      } else if (message.type === 'gems_loaded') {
+        const list = message.gems || [];
+        setSavedGems(list);
+        if (list.length > 0 && activeGemId === 'default') {
+          handleSelectGem(list[0]);
+        }
       } else if (message.type === 'session_saved') {
         if (!activeSessionId) setActiveSessionId(message.sessionId);
       } else if (message.type === 'load_history') {
@@ -204,6 +210,7 @@ export default function App() {
     };
 
     window.addEventListener('message', handleMessage);
+    vscode.postMessage({ type: 'webview_ready' });
     return () => window.removeEventListener('message', handleMessage);
   }, [activeSessionId]); // Added activeSessionId to dependencies for session_saved logic
 
@@ -407,7 +414,7 @@ export default function App() {
           <h1 className="text-sm font-semibold tracking-wide text-zinc-100 flex items-center gap-2">
             Cognitive Resonance
             <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded text-[10px] font-mono border border-zinc-700/50">
-              v0.0.11
+              v0.0.12
             </span>
           </h1>
         </div>
