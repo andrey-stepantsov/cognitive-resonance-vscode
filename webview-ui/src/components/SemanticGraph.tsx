@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
+import { Maximize2, Minimize2 } from 'lucide-react';
 
 export interface Node {
   id: string;
@@ -20,6 +21,7 @@ interface SemanticGraphProps {
 
 export const SemanticGraph: React.FC<SemanticGraphProps> = ({ nodes, edges }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     if (!svgRef.current || nodes.length === 0) return;
@@ -127,16 +129,30 @@ export const SemanticGraph: React.FC<SemanticGraphProps> = ({ nodes, edges }) =>
     return () => {
       simulation.stop();
     };
-  }, [nodes, edges]);
+  }, [nodes, edges, isFullscreen]);
 
   return (
-    <div className="w-full h-full flex-1 min-h-[300px] overflow-hidden rounded-xl bg-zinc-950/50 border border-zinc-800/50 relative">
-      <svg ref={svgRef} className="w-full h-full absolute inset-0" />
-      {nodes.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center text-zinc-500 text-sm">
-          No semantic markers yet
-        </div>
-      )}
+    <div className={
+      isFullscreen
+        ? "fixed inset-0 z-[100] bg-zinc-950/95 backdrop-blur-sm p-4 md:p-8 flex flex-col"
+        : "w-full h-full flex-1 min-h-[300px] overflow-hidden rounded-xl bg-zinc-950/50 border border-zinc-800/50 relative group"
+    }>
+      <button 
+        onClick={() => setIsFullscreen(!isFullscreen)}
+        className={`fixed md:absolute top-2 right-2 p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors z-[110] ${!isFullscreen && 'opacity-0 group-hover:opacity-100'}`}
+        title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+      >
+        {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+      </button>
+
+      <div className={`relative ${isFullscreen ? 'w-full h-full flex-1 border border-zinc-800/50 rounded-xl overflow-hidden bg-zinc-950/50' : 'w-full h-full absolute inset-0'}`}>
+        <svg ref={svgRef} className="w-full h-full absolute inset-0" />
+        {nodes.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center text-zinc-500 text-sm">
+            No semantic markers yet
+          </div>
+        )}
+      </div>
     </div>
   );
 };
