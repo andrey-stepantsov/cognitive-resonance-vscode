@@ -9,6 +9,19 @@
   "categories": [
     "Other"
   ],
+  "publisher": "YOUR_PUBLISHER_ID_HERE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/cognitive-resonance.git"
+  },
+  "icon": "icon.png",
+  "keywords": [
+    "AI",
+    "Gemini",
+    "Chat",
+    "Cognitive Resonance"
+  ],
+  "license": "MIT",
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
