@@ -692,7 +692,7 @@ export default function App() {
                        if (gem) handleSelectGem(gem);
                      }
                    }}
-                   className="w-full bg-zinc-900/50 text-sm text-zinc-200 border border-indigo-500/30 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer"
+                   className="w-full bg-zinc-900/50 text-sm text-zinc-200 border border-indigo-500/30 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 cursor-pointer"
                  >
                    {savedGems.map(g => (
                      <option key={g.id} value={g.id}>{g.name}</option>
@@ -717,10 +717,16 @@ export default function App() {
                   <select 
                     value={selectedModel} 
                     onChange={(e) => setSelectedModel(e.target.value)}
-                    disabled={availableModels.length === 0}
-                    className="w-full bg-zinc-900/50 text-sm text-zinc-200 border border-zinc-700/50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 disabled:opacity-50 appearance-none cursor-pointer"
+                    disabled={false}
+                    className="w-full bg-zinc-900/50 text-sm text-zinc-200 border border-zinc-700/50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 cursor-pointer"
                   >
-                    {availableModels.length === 0 && <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>}
+                    {availableModels.length === 0 && (
+                      <>
+                        <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
+                        <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                        <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                      </>
+                    )}
                     {availableModels.length > 0 && selectedModel === '' && <option value="" disabled>Select a Model...</option>}
                     {availableModels.map((m: any) => (
                       <option key={m.name} value={m.name.replace('models/', '')}>{m.displayName || m.name.replace('models/', '')}</option>
