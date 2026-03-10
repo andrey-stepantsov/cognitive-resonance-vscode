@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { GoogleGenAI } from '@google/genai';
 import * as path from 'path';
 import * as fs from 'fs';
-import { parseModelResponse, filterModelList, formatApiError } from './ai-utils';
+import { parseModelResponse, filterModelList, formatApiError, getMimeType } from './ai-utils';
 import { appendDiagnostic, readDiagnosticLog, formatDiagnosticReport } from './diagnostics';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -213,12 +213,37 @@ function setupChatPanel(panel: vscode.WebviewPanel, context: vscode.ExtensionCon
             const customInstruction = message.systemPrompt ? `\n\nUSER CUSTOM SYSTEM INSTRUCTIONS:\n${message.systemPrompt}` : "";
             const finalInstruction = baseInstruction + customInstruction;
 
+            // Build content history, injecting multimodal file parts on the last user turn
+            const attachedFiles: Array<{localPath: string; name: string}> = message.attachedFiles || [];
+            let fileDataParts: Array<{fileData: {fileUri: string; mimeType: string}}> = [];
+
+            if (attachedFiles.length > 0) {
+              for (const af of attachedFiles) {
+                try {
+                  const uploaded = await ai.files.upload({ file: af.localPath });
+                  if (uploaded.uri && uploaded.mimeType) {
+                    fileDataParts.push({ fileData: { fileUri: uploaded.uri, mimeType: uploaded.mimeType } });
+                  }
+                } catch (uploadErr: any) {
+                  console.error(`Failed to upload file ${af.name}:`, uploadErr);
+                  appendDiagnostic(storagePath, { level: 'error', context: 'fileUpload', message: formatApiError(uploadErr) });
+                  // Continue with remaining files — don't abort the whole prompt
+                }
+              }
+            }
+
+            const contents = message.history.map((m: any, idx: number) => {
+              const parts: any[] = [{ text: m.content }];
+              // Attach file data parts to the last user message
+              if (m.role === 'user' && idx === message.history.length - 1 && fileDataParts.length > 0) {
+                parts.push(...fileDataParts);
+              }
+              return { role: m.role, parts };
+            });
+
             const response = await ai.models.generateContent({
               model: message.model || "gemini-3.1-pro-preview",
-              contents: message.history.map((m: any) => ({
-                role: m.role,
-                parts: [{ text: m.content }]
-              })),
+              contents,
               config: {
                 systemInstruction: finalInstruction,
                 responseMimeType: "application/json",
@@ -299,6 +324,68 @@ function setupChatPanel(panel: vscode.WebviewPanel, context: vscode.ExtensionCon
             broadcastSessions();
           } catch (err) {
              console.error("Failed to delete session:", err);
+          }
+          return;
+        case 'request_file_selection':
+          try {
+            const fileUris = await vscode.window.showOpenDialog({
+              canSelectMany: true,
+              openLabel: 'Attach Files',
+              filters: {
+                'Images': ['png', 'jpg', 'jpeg', 'gif', 'webp'],
+                'Documents': ['pdf', 'txt', 'md', 'csv', 'json']
+              }
+            });
+            if (fileUris && fileUris.length > 0) {
+              for (const uri of fileUris) {
+                const filePath = uri.fsPath;
+                const fileName = path.basename(filePath);
+                const mimeType = getMimeType(filePath);
+                let preview: string | undefined;
+
+                // Generate Base64 thumbnail for images
+                if (mimeType.startsWith('image/')) {
+                  try {
+                    const fileBuffer = await fs.promises.readFile(filePath);
+                    const base64 = fileBuffer.toString('base64');
+                    preview = `data:${mimeType};base64,${base64}`;
+                  } catch (readErr) {
+                    console.error(`Failed to read image for preview: ${fileName}`, readErr);
+                  }
+                }
+
+                panel.webview.postMessage({
+                  type: 'file_attached',
+                  file: {
+                    id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    name: fileName,
+                    mimeType,
+                    localPath: filePath,
+                    preview
+                  }
+                });
+              }
+            }
+          } catch (err: any) {
+            console.error("Failed to select files:", err);
+            appendDiagnostic(storagePath, { level: 'error', context: 'fileSelection', message: formatApiError(err) });
+          }
+          return;
+        case 'save_artifact':
+          try {
+            const saveUri = await vscode.window.showSaveDialog({
+              filters: { 'All Files': ['*'] },
+              defaultUri: vscode.Uri.file(message.filename || 'artifact.txt'),
+              saveLabel: 'Save Artifact'
+            });
+            if (saveUri) {
+              await fs.promises.writeFile(saveUri.fsPath, message.content, 'utf8');
+              vscode.window.showInformationMessage(`Artifact saved: ${path.basename(saveUri.fsPath)}`);
+            }
+          } catch (err: any) {
+            console.error("Failed to save artifact:", err);
+            appendDiagnostic(storagePath, { level: 'error', context: 'saveArtifact', message: formatApiError(err) });
+            vscode.window.showErrorMessage('Failed to save artifact: ' + err.message);
           }
           return;
       }

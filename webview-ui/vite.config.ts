@@ -25,7 +25,13 @@ export default defineConfig(({mode}) => {
         output: {
           entryFileNames: `assets/index.js`,
           chunkFileNames: `assets/[name].js`,
-          assetFileNames: `assets/index.[ext]`
+          assetFileNames: `assets/index.[ext]`,
+          manualChunks(id) {
+            if (id.includes('node_modules/mermaid')) return 'vendor-mermaid';
+            if (id.includes('node_modules/d3')) return 'vendor-d3';
+            if (id.includes('node_modules/cytoscape')) return 'vendor-cytoscape';
+            if (id.includes('node_modules/katex')) return 'vendor-katex';
+          }
         }
       }
     }

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
-import { Send, BrainCircuit, Activity, Network, Loader2, X, Download, Copy, Check, AlertTriangle, Settings } from 'lucide-react';
+import { Send, BrainCircuit, Activity, Network, Loader2, X, Download, Copy, Check, AlertTriangle, Settings, Paperclip, FileText } from 'lucide-react';
 import { SemanticGraph, Node, Edge } from './components/SemanticGraph';
 import { DissonanceMeter } from './components/DissonanceMeter';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
@@ -68,6 +68,14 @@ interface Message {
   isError?: boolean;
 }
 
+interface AttachedFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  localPath: string;
+  preview?: string;
+}
+
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -95,6 +103,7 @@ export default function App() {
 
   const [isViewMode, setIsViewMode] = useState(false);
   const [historyFilename, setHistoryFilename] = useState('');
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -186,6 +195,9 @@ export default function App() {
           setActiveGemId('custom'); // Or find matching ID
         }
         setIsLoading(false);
+      } else if (message.type === 'file_attached') {
+        const file = message.file as AttachedFile;
+        setAttachedFiles(prev => [...prev, file]);
       }
     };
 
@@ -263,8 +275,10 @@ export default function App() {
       model: selectedModel,
       systemPrompt: systemPrompt.trim(),
       history: newMessages,
-      responseSchema: responseSchema
+      responseSchema: responseSchema,
+      attachedFiles: attachedFiles.map(f => ({ localPath: f.localPath, name: f.name }))
     });
+    setAttachedFiles([]);
   };
 
   const handleDownloadHistory = () => {
@@ -391,7 +405,7 @@ export default function App() {
           <h1 className="text-sm font-semibold tracking-wide text-zinc-100 flex items-center gap-2">
             Cognitive Resonance
             <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded text-[10px] font-mono border border-zinc-700/50">
-              v0.0.4
+              v0.0.5
             </span>
           </h1>
         </div>
@@ -595,6 +609,27 @@ export default function App() {
 
         {!isViewMode && (
           <div className="p-4 bg-zinc-900/50 border-t border-zinc-800/50 flex flex-col gap-2 relative z-20">
+            {/* Attachment Preview Strip */}
+            {attachedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2 px-1">
+                {attachedFiles.map(f => (
+                  <div key={f.id} className="flex items-center gap-2 bg-zinc-800/80 border border-zinc-700/50 rounded-lg px-2.5 py-1.5 text-xs group animate-in fade-in slide-in-from-bottom-2 duration-200">
+                    {f.preview ? (
+                      <img src={f.preview} alt={f.name} className="w-8 h-8 rounded object-cover" />
+                    ) : (
+                      <FileText className="w-4 h-4 text-zinc-400" />
+                    )}
+                    <span className="text-zinc-300 max-w-[120px] truncate">{f.name}</span>
+                    <button
+                      onClick={() => setAttachedFiles(prev => prev.filter(af => af.id !== f.id))}
+                      className="p-0.5 text-zinc-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <form onSubmit={handleSubmit} className="relative flex items-center">
               {selectedModel === '' && (
                 <div className="absolute -top-10 left-0 w-full text-center pointer-events-none">
@@ -603,6 +638,15 @@ export default function App() {
                   </span>
                 </div>
               )}
+              <button
+                type="button"
+                onClick={() => vscode.postMessage({ type: 'request_file_selection' })}
+                disabled={isLoading}
+                className="p-2.5 text-zinc-400 hover:text-indigo-400 transition-colors disabled:opacity-40 shrink-0"
+                title="Attach files"
+              >
+                <Paperclip className="w-4 h-4" />
+              </button>
               <input
                 type="text"
                 value={input}

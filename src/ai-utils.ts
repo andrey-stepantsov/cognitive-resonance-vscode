@@ -127,3 +127,35 @@ export function formatApiError(error: unknown): string {
   }
   return String(error);
 }
+
+// ─── getMimeType ─────────────────────────────────────────────────────
+
+const MIME_MAP: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".pdf": "application/pdf",
+  ".txt": "text/plain",
+  ".md": "text/markdown",
+  ".csv": "text/csv",
+  ".json": "application/json",
+  ".xml": "application/xml",
+  ".html": "text/html",
+  ".js": "text/javascript",
+  ".ts": "text/typescript",
+  ".py": "text/x-python",
+};
+
+/**
+ * Resolve a MIME type from a file path's extension.
+ * Returns `"application/octet-stream"` for unrecognised extensions.
+ */
+export function getMimeType(filePath: string): string {
+  const dot = filePath.lastIndexOf(".");
+  if (dot === -1) return "application/octet-stream";
+  const ext = filePath.slice(dot).toLowerCase();
+  return MIME_MAP[ext] ?? "application/octet-stream";
+}

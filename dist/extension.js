@@ -211,12 +211,35 @@ function setupChatPanel(panel, context, apiKey) {
                         const baseInstruction = "You are an AI assistant. Along with your reply, you must analyze your own internal state. Calculate your 'dissonance score' (0-100) representing your uncertainty, conflicting information, or cognitive load. Also, extract a semantic graph of the concepts you are currently processing.";
                         const customInstruction = message.systemPrompt ? `\n\nUSER CUSTOM SYSTEM INSTRUCTIONS:\n${message.systemPrompt}` : "";
                         const finalInstruction = baseInstruction + customInstruction;
+                        // Build content history, injecting multimodal file parts on the last user turn
+                        const attachedFiles = message.attachedFiles || [];
+                        let fileDataParts = [];
+                        if (attachedFiles.length > 0) {
+                            for (const af of attachedFiles) {
+                                try {
+                                    const uploaded = await ai.files.upload({ file: af.localPath });
+                                    if (uploaded.uri && uploaded.mimeType) {
+                                        fileDataParts.push({ fileData: { fileUri: uploaded.uri, mimeType: uploaded.mimeType } });
+                                    }
+                                }
+                                catch (uploadErr) {
+                                    console.error(`Failed to upload file ${af.name}:`, uploadErr);
+                                    (0, diagnostics_1.appendDiagnostic)(storagePath, { level: 'error', context: 'fileUpload', message: (0, ai_utils_1.formatApiError)(uploadErr) });
+                                    // Continue with remaining files — don't abort the whole prompt
+                                }
+                            }
+                        }
+                        const contents = message.history.map((m, idx) => {
+                            const parts = [{ text: m.content }];
+                            // Attach file data parts to the last user message
+                            if (m.role === 'user' && idx === message.history.length - 1 && fileDataParts.length > 0) {
+                                parts.push(...fileDataParts);
+                            }
+                            return { role: m.role, parts };
+                        });
                         const response = await ai.models.generateContent({
                             model: message.model || "gemini-3.1-pro-preview",
-                            contents: message.history.map((m) => ({
-                                role: m.role,
-                                parts: [{ text: m.content }]
-                            })),
+                            contents,
                             config: {
                                 systemInstruction: finalInstruction,
                                 responseMimeType: "application/json",
@@ -303,6 +326,69 @@ function setupChatPanel(panel, context, apiKey) {
                     }
                     catch (err) {
                         console.error("Failed to delete session:", err);
+                    }
+                    return;
+                case 'request_file_selection':
+                    try {
+                        const fileUris = await vscode.window.showOpenDialog({
+                            canSelectMany: true,
+                            openLabel: 'Attach Files',
+                            filters: {
+                                'Images': ['png', 'jpg', 'jpeg', 'gif', 'webp'],
+                                'Documents': ['pdf', 'txt', 'md', 'csv', 'json']
+                            }
+                        });
+                        if (fileUris && fileUris.length > 0) {
+                            for (const uri of fileUris) {
+                                const filePath = uri.fsPath;
+                                const fileName = path.basename(filePath);
+                                const mimeType = (0, ai_utils_1.getMimeType)(filePath);
+                                let preview;
+                                // Generate Base64 thumbnail for images
+                                if (mimeType.startsWith('image/')) {
+                                    try {
+                                        const fileBuffer = await fs.promises.readFile(filePath);
+                                        const base64 = fileBuffer.toString('base64');
+                                        preview = `data:${mimeType};base64,${base64}`;
+                                    }
+                                    catch (readErr) {
+                                        console.error(`Failed to read image for preview: ${fileName}`, readErr);
+                                    }
+                                }
+                                panel.webview.postMessage({
+                                    type: 'file_attached',
+                                    file: {
+                                        id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                                        name: fileName,
+                                        mimeType,
+                                        localPath: filePath,
+                                        preview
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    catch (err) {
+                        console.error("Failed to select files:", err);
+                        (0, diagnostics_1.appendDiagnostic)(storagePath, { level: 'error', context: 'fileSelection', message: (0, ai_utils_1.formatApiError)(err) });
+                    }
+                    return;
+                case 'save_artifact':
+                    try {
+                        const saveUri = await vscode.window.showSaveDialog({
+                            filters: { 'All Files': ['*'] },
+                            defaultUri: vscode.Uri.file(message.filename || 'artifact.txt'),
+                            saveLabel: 'Save Artifact'
+                        });
+                        if (saveUri) {
+                            await fs.promises.writeFile(saveUri.fsPath, message.content, 'utf8');
+                            vscode.window.showInformationMessage(`Artifact saved: ${path.basename(saveUri.fsPath)}`);
+                        }
+                    }
+                    catch (err) {
+                        console.error("Failed to save artifact:", err);
+                        (0, diagnostics_1.appendDiagnostic)(storagePath, { level: 'error', context: 'saveArtifact', message: (0, ai_utils_1.formatApiError)(err) });
+                        vscode.window.showErrorMessage('Failed to save artifact: ' + err.message);
                     }
                     return;
             }

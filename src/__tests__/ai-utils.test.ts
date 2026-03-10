@@ -3,6 +3,7 @@ import {
   parseModelResponse,
   filterModelList,
   formatApiError,
+  getMimeType,
   type RawModelInfo,
 } from "../ai-utils";
 
@@ -163,5 +164,43 @@ describe("formatApiError", () => {
 
   it("returns a meaningful fallback for undefined", () => {
     expect(formatApiError(undefined)).toBe("An unknown error occurred.");
+  });
+});
+
+// ─── getMimeType ─────────────────────────────────────────────────────
+
+describe("getMimeType", () => {
+  it("maps known image extensions", () => {
+    expect(getMimeType("photo.png")).toBe("image/png");
+    expect(getMimeType("photo.jpg")).toBe("image/jpeg");
+    expect(getMimeType("photo.jpeg")).toBe("image/jpeg");
+    expect(getMimeType("image.webp")).toBe("image/webp");
+    expect(getMimeType("graphic.gif")).toBe("image/gif");
+  });
+
+  it("maps known document extensions", () => {
+    expect(getMimeType("file.pdf")).toBe("application/pdf");
+    expect(getMimeType("notes.txt")).toBe("text/plain");
+    expect(getMimeType("readme.md")).toBe("text/markdown");
+    expect(getMimeType("data.csv")).toBe("text/csv");
+    expect(getMimeType("config.json")).toBe("application/json");
+  });
+
+  it("is case-insensitive", () => {
+    expect(getMimeType("PHOTO.PNG")).toBe("image/png");
+    expect(getMimeType("Report.PDF")).toBe("application/pdf");
+  });
+
+  it("handles full paths", () => {
+    expect(getMimeType("/Users/someone/images/cat.jpg")).toBe("image/jpeg");
+  });
+
+  it("returns octet-stream for unknown extensions", () => {
+    expect(getMimeType("archive.zip")).toBe("application/octet-stream");
+    expect(getMimeType("data.parquet")).toBe("application/octet-stream");
+  });
+
+  it("returns octet-stream for files without an extension", () => {
+    expect(getMimeType("Makefile")).toBe("application/octet-stream");
   });
 });
