@@ -6,9 +6,12 @@ This extension provides a rich, webview-based chat interface allowing you to int
 
 ## Features
 
-- **Rich Webview Interface**: A dedicated panel for seamless conversation.
+- **Rich Webview Interface**: A dedicated panel for seamless conversation, supporting standard Markdown and code blocks.
+- **Interactive Mermaid Diagrams**: Code blocks tagged as `mermaid` are automatically intercepted and rendered as native, dark-themed SVG diagrams.
+- **Gem Configurations**: Customize the AI's persona or set specific rules via the System Prompt configuration modal. Save multiple named personas and switch between them instantly.
 - **Internal State Visualization**: Watch the model map concepts via a Semantic Graph and measure its own "Cognitive Dissonance" based on your prompts.
-- **Session Management**: Download chat histories and resume them later seamlessly using the "Resume Session" command.
+- **Auto-Saving Chat Sessions**: Every message you send is automatically synced and saved to an offline extension storage folder. 
+- **Session History Browser**: Open the sliding sidebar to view all past conversations and resume any thread with a single click—no file pickers required.
 - **Model Selection**: Dynamically fetches and filters the latest Gemini models available to your API key.
 - **Robust Error Handling**: API errors, malformed model responses, and network failures are caught and shown as distinct, copyable error messages in the chat — never a cryptic crash.
 - **Diagnostics & Tech Support**: A local error log lets users export a formatted diagnostics report with one command, making it easy to share errors for troubleshooting.
@@ -30,9 +33,8 @@ Getting a key is completely free:
 All features are accessed via the VS Code Command Palette (`Cmd+Shift+P` on Mac, `Ctrl+Shift+P` on Windows/Linux):
 
 1. **`Cognitive Resonance: Set Gemini API Key`**: Run this first to securely save your API key.
-2. **`Cognitive Resonance: Start Session`**: Opens the main chat webview to begin a new conversation.
-3. **`Cognitive Resonance: Resume Session`**: Select a previously downloaded `.json` history file to continue a past conversation.
-4. **`Cognitive Resonance: View History`**: Select a `.json` history file strictly for a read-only review of the semantic graph and dialogue.
+2. **`Cognitive Resonance: Start Session`**: Opens the main chat webview to begin a new conversation, or open the Session Sidebar to load old ones.
+3. **`Cognitive Resonance: View History`**: Select an exported `.json` history file strictly for a read-only review of the semantic graph and dialogue.
 5. **`Cognitive Resonance: Export Diagnostics`**: Copies a formatted diagnostics report (all logged errors) to your clipboard for easy sharing.
 
 ## Setting Up for Local Development

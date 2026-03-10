@@ -96,10 +96,6 @@ function activate(context) {
                 localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-ui', 'dist'))]
             });
             panel.webview.html = getWebviewContent(panel.webview, context.extensionPath);
-            // We need to wait for the webview to load before posting the message.
-            // Since we don't have a reliable 'ready' event from the webview yet, 
-            // a short timeout or waiting for a 'ready' message works. 
-            // For now, post immediately and also set a slight delay to ensure it's picked up.
             setTimeout(() => {
                 panel.webview.postMessage({ type: 'load_history', data, filename });
             }, 500);
@@ -111,46 +107,18 @@ function activate(context) {
         }
     });
     let loadSessionCommand = vscode.commands.registerCommand('cognitive-resonance.loadSession', async () => {
+        // We now just open the webview, the new sidebar handles loading.
         const apiKey = await context.secrets.get('gemini-api-key');
         if (!apiKey) {
             vscode.window.showErrorMessage('Gemini API Key not set. Please run "Cognitive Resonance: Set Gemini API Key" first.');
             return;
         }
-        const fileUris = await vscode.window.showOpenDialog({
-            canSelectMany: false,
-            openLabel: 'Resume Session',
-            filters: {
-                'JSON': ['json']
-            }
+        const panel = vscode.window.createWebviewPanel('cognitiveResonance', 'Cognitive Resonance', vscode.ViewColumn.One, {
+            enableScripts: true,
+            retainContextWhenHidden: true,
+            localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-ui', 'dist'))]
         });
-        if (!fileUris || fileUris.length === 0) {
-            return;
-        }
-        const fileUri = fileUris[0];
-        const filename = path.basename(fileUri.fsPath);
-        try {
-            const fileContent = await fs.promises.readFile(fileUri.fsPath, 'utf8');
-            const data = JSON.parse(fileContent);
-            if (!data || !Array.isArray(data.messages)) {
-                vscode.window.showErrorMessage('Invalid history file format. Expected an array of messages.');
-                return;
-            }
-            const panel = vscode.window.createWebviewPanel('cognitiveResonance', `Cognitive Resonance: ${filename}`, vscode.ViewColumn.One, {
-                enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-ui', 'dist'))]
-            });
-            setupChatPanel(panel, context, apiKey);
-            // Give webview a moment to initialize before posting the resume state
-            setTimeout(() => {
-                panel.webview.postMessage({ type: 'resume_history', data, filename });
-            }, 500);
-        }
-        catch (error) {
-            console.error("Error reading history file:", error);
-            (0, diagnostics_1.appendDiagnostic)(storagePath, { level: 'error', context: 'loadSession', message: (0, ai_utils_1.formatApiError)(error) });
-            vscode.window.showErrorMessage('Failed to read history file: ' + error.message);
-        }
+        setupChatPanel(panel, context, apiKey);
     });
     let exportDiagnosticsCommand = vscode.commands.registerCommand('cognitive-resonance.exportDiagnostics', async () => {
         const log = (0, diagnostics_1.readDiagnosticLog)(storagePath);
@@ -166,8 +134,58 @@ function activate(context) {
 }
 function setupChatPanel(panel, context, apiKey) {
     const storagePath = context.globalStorageUri.fsPath;
+    const sessionsPath = path.join(storagePath, 'sessions');
+    const gemsFilePath = path.join(storagePath, 'gems.json');
+    // Ensure directories exist
+    if (!fs.existsSync(storagePath)) {
+        fs.mkdirSync(storagePath, { recursive: true });
+    }
+    if (!fs.existsSync(sessionsPath)) {
+        fs.mkdirSync(sessionsPath, { recursive: true });
+    }
     panel.webview.html = getWebviewContent(panel.webview, context.extensionPath);
     const ai = new genai_1.GoogleGenAI({ apiKey });
+    // Load saved gems from file and send to webview
+    let savedGems = [];
+    try {
+        if (fs.existsSync(gemsFilePath)) {
+            savedGems = JSON.parse(fs.readFileSync(gemsFilePath, 'utf8'));
+        }
+    }
+    catch (err) {
+        console.error("Failed to parse gems file.", err);
+    }
+    panel.webview.postMessage({ type: 'gems_loaded', gems: savedGems });
+    // Load all sessions
+    const broadcastSessions = async () => {
+        try {
+            const files = await fs.promises.readdir(sessionsPath);
+            const sessionsList = [];
+            for (const file of files) {
+                if (file.endsWith('.json')) {
+                    const p = path.join(sessionsPath, file);
+                    const stat = await fs.promises.stat(p);
+                    const content = await fs.promises.readFile(p, 'utf8');
+                    try {
+                        const json = JSON.parse(content);
+                        sessionsList.push({
+                            id: file.replace('.json', ''),
+                            timestamp: stat.mtimeMs,
+                            preview: json.messages.length > 0 ? (json.messages[0].content.substring(0, 40) + '...') : 'Empty Session',
+                            config: json.config
+                        });
+                    }
+                    catch (e) { }
+                }
+            }
+            sessionsList.sort((a, b) => b.timestamp - a.timestamp);
+            panel.webview.postMessage({ type: 'sessions_loaded', sessions: sessionsList });
+        }
+        catch (err) {
+            console.error("Failed to read sessions dir", err);
+        }
+    };
+    broadcastSessions();
     // Fetch available models in the background
     (async () => {
         try {
@@ -190,6 +208,9 @@ function setupChatPanel(panel, context, apiKey) {
             switch (message.type) {
                 case 'prompt':
                     try {
+                        const baseInstruction = "You are an AI assistant. Along with your reply, you must analyze your own internal state. Calculate your 'dissonance score' (0-100) representing your uncertainty, conflicting information, or cognitive load. Also, extract a semantic graph of the concepts you are currently processing.";
+                        const customInstruction = message.systemPrompt ? `\n\nUSER CUSTOM SYSTEM INSTRUCTIONS:\n${message.systemPrompt}` : "";
+                        const finalInstruction = baseInstruction + customInstruction;
                         const response = await ai.models.generateContent({
                             model: message.model || "gemini-3.1-pro-preview",
                             contents: message.history.map((m) => ({
@@ -197,15 +218,21 @@ function setupChatPanel(panel, context, apiKey) {
                                 parts: [{ text: m.content }]
                             })),
                             config: {
-                                systemInstruction: "You are an AI assistant. Along with your reply, you must analyze your own internal state. Calculate your 'dissonance score' (0-100) representing your uncertainty, conflicting information, or cognitive load. Also, extract a semantic graph of the concepts you are currently processing.",
+                                systemInstruction: finalInstruction,
                                 responseMimeType: "application/json",
                                 responseSchema: message.responseSchema
                             }
                         });
                         const jsonStr = response.text;
                         if (jsonStr) {
-                            const data = (0, ai_utils_1.parseModelResponse)(jsonStr);
-                            panel.webview.postMessage({ type: 'response', data });
+                            try {
+                                const data = typeof jsonStr === "string" ? JSON.parse(jsonStr) : jsonStr;
+                                panel.webview.postMessage({ type: 'response', data });
+                            }
+                            catch (e) {
+                                console.error("Failed to parse JSON", jsonStr, e);
+                                throw new Error("Failed to parse model response as JSON: " + jsonStr);
+                            }
                         }
                     }
                     catch (error) {
@@ -231,6 +258,51 @@ function setupChatPanel(panel, context, apiKey) {
                         console.error("Failed to save session history:", err);
                         (0, diagnostics_1.appendDiagnostic)(storagePath, { level: 'error', context: 'saveHistory', message: (0, ai_utils_1.formatApiError)(err) });
                         vscode.window.showErrorMessage('Failed to save session history: ' + err.message);
+                    }
+                    return;
+                case 'save_gems':
+                    try {
+                        await fs.promises.writeFile(gemsFilePath, JSON.stringify(message.data, null, 2), 'utf8');
+                    }
+                    catch (err) {
+                        console.error("Failed to save gems to global state:", err);
+                        (0, diagnostics_1.appendDiagnostic)(storagePath, { level: 'error', context: 'saveGems', message: (0, ai_utils_1.formatApiError)(err) });
+                    }
+                    return;
+                case 'save_active_session':
+                    try {
+                        const sessionId = message.sessionId || `session-${Date.now()}`;
+                        const fp = path.join(sessionsPath, `${sessionId}.json`);
+                        await fs.promises.writeFile(fp, JSON.stringify(message.data, null, 2), 'utf8');
+                        broadcastSessions();
+                        panel.webview.postMessage({ type: 'session_saved', sessionId });
+                    }
+                    catch (err) {
+                        console.error("Failed to aut-save session:", err);
+                    }
+                    return;
+                case 'load_specific_session':
+                    try {
+                        const fp = path.join(sessionsPath, `${message.sessionId}.json`);
+                        const content = await fs.promises.readFile(fp, 'utf8');
+                        const data = JSON.parse(content);
+                        panel.webview.postMessage({ type: 'resume_history', data, filename: message.sessionId, sessionId: message.sessionId });
+                    }
+                    catch (err) {
+                        console.error("Failed to load session:", err);
+                        vscode.window.showErrorMessage("Failed to load session.");
+                    }
+                    return;
+                case 'delete_session':
+                    try {
+                        const fp = path.join(sessionsPath, `${message.sessionId}.json`);
+                        if (fs.existsSync(fp)) {
+                            await fs.promises.unlink(fp);
+                        }
+                        broadcastSessions();
+                    }
+                    catch (err) {
+                        console.error("Failed to delete session:", err);
                     }
                     return;
             }

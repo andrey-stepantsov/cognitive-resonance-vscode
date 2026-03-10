@@ -73,7 +73,7 @@ export const DissonanceMeter: React.FC<DissonanceMeterProps> = ({
               data={history}
               onClick={(state) => {
                 if (state && state.activeTooltipIndex !== undefined) {
-                  onSelectTurn(state.activeTooltipIndex);
+                  onSelectTurn(Number(state.activeTooltipIndex));
                 }
               }}
               style={{ cursor: 'pointer' }}
