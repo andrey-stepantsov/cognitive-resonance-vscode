@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import * as d3 from 'd3';
 import { Maximize2, Minimize2 } from 'lucide-react';
 
@@ -131,7 +132,7 @@ export const SemanticGraph: React.FC<SemanticGraphProps> = ({ nodes, edges }) =>
     };
   }, [nodes, edges, isFullscreen]);
 
-  return (
+  const content = (
     <div className={
       isFullscreen
         ? "fixed inset-0 z-[100] bg-zinc-950/95 backdrop-blur-sm p-4 md:p-8 flex flex-col"
@@ -139,7 +140,7 @@ export const SemanticGraph: React.FC<SemanticGraphProps> = ({ nodes, edges }) =>
     }>
       <button 
         onClick={() => setIsFullscreen(!isFullscreen)}
-        className={`fixed md:absolute top-2 right-2 p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors z-[110] ${!isFullscreen && 'opacity-0 group-hover:opacity-100'}`}
+        className={`fixed md:absolute top-2 right-2 p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors z-[110] ${!isFullscreen ? 'opacity-0 group-hover:opacity-100' : ''}`}
         title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
       >
         {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -155,4 +156,6 @@ export const SemanticGraph: React.FC<SemanticGraphProps> = ({ nodes, edges }) =>
       </div>
     </div>
   );
+
+  return isFullscreen ? createPortal(content, document.body) : content;
 };
