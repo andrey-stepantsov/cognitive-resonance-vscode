@@ -72,7 +72,7 @@ describe("filterModelList", () => {
     { name: "models/gemini-2.5-pro", displayName: "Gemini 2.5 Pro", description: "The best." },
     { name: "models/gemini-2.0-flash", displayName: "Gemini 2.0 Flash", description: "Fast." },
     { name: "models/gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro Preview", description: "Preview." },
-    // Should be EXCLUDED — nano
+    // Should be INCLUDED — nano
     { name: "models/gemini-2.0-flash-nano", displayName: "Nano", description: "Tiny." },
     // Should be EXCLUDED — vision
     { name: "models/gemini-pro-vision", displayName: "Vision", description: "Sees things." },
@@ -102,14 +102,15 @@ describe("filterModelList", () => {
       "models/gemini-2.5-pro",
       "models/gemini-2.0-flash",
       "models/gemini-3.1-pro-preview",
+      "models/gemini-2.0-flash-nano",
     ]);
   });
 
-  it("excludes vision, embedding, aqa, audio, learn, bison, gecko, and nano models", () => {
+  it("excludes vision, embedding, aqa, audio, learn, bison, and gecko models", () => {
     const result = filterModelList(mockModels);
     const names = result.map((m) => m.name);
 
-    expect(names).not.toContain("models/gemini-2.0-flash-nano");
+    expect(names).toContain("models/gemini-2.0-flash-nano");
     expect(names).not.toContain("models/gemini-pro-vision");
     expect(names).not.toContain("models/embedding-001");
     expect(names).not.toContain("models/aqa");

@@ -62,8 +62,8 @@ export function parseModelResponse(jsonStr: string): CognitiveResponse {
 
 /**
  * Filter a raw list of models from `ai.models.list()` down to the
- * primary Gemini generative chat models, excluding legacy, specialized,
- * and nano variants.
+ * primary Gemini generative chat models, excluding legacy and
+ * specialized variants.
  */
 export function filterModelList(models: RawModelInfo[]): FilteredModel[] {
   const result: FilteredModel[] = [];
@@ -87,9 +87,6 @@ export function filterModelList(models: RawModelInfo[]): FilteredModel[] {
     )
       continue;
     if (name.includes("bison") || name.includes("gecko")) continue;
-
-    // Exclude nano models (struggle with strict JSON schema enforcement)
-    if (name.includes("nano")) continue;
 
     result.push({
       name: m.name,
