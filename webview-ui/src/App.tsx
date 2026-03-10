@@ -327,13 +327,13 @@ export default function App() {
         </div>
 
         {!isViewMode && (
-          <div className="p-4 bg-zinc-900/50 border-t border-zinc-800/50 flex flex-col gap-2">
+          <div className="p-4 bg-zinc-900/50 border-t border-zinc-800/50 flex flex-col gap-2 relative z-20">
             <div className="flex justify-between items-center px-1">
               <select 
                 value={selectedModel} 
                 onChange={(e) => setSelectedModel(e.target.value)}
                 disabled={availableModels.length === 0}
-                className="bg-zinc-800 text-xs text-zinc-300 border border-zinc-700/50 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 max-w-[200px] sm:max-w-[250px]"
+                className="bg-zinc-800 text-xs text-zinc-300 border border-zinc-700/50 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 max-w-[200px] sm:max-w-[250px] cursor-pointer"
                 title="Select Gemini Model"
               >
                 {availableModels.length === 0 && <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>}
@@ -345,8 +345,8 @@ export default function App() {
             </div>
             <form onSubmit={handleSubmit} className="relative flex items-center">
               {selectedModel === '' && (
-                <div className="absolute -top-10 left-0 w-full text-center">
-                  <span className="bg-amber-500/10 text-amber-400 text-xs px-3 py-1.5 rounded-full border border-amber-500/20 shadow-lg">
+                <div className="absolute -top-10 left-0 w-full text-center pointer-events-none">
+                  <span className="bg-amber-500/10 text-amber-400 text-xs px-3 py-1.5 rounded-full border border-amber-500/20 shadow-lg pointer-events-auto">
                     Please select an available model from the menu above to continue.
                   </span>
                 </div>

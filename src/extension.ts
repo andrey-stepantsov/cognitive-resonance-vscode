@@ -208,8 +208,20 @@ function setupChatPanel(panel: vscode.WebviewPanel, context: vscode.ExtensionCon
             
             const jsonStr = response.text;
             if (jsonStr) {
-              const data = JSON.parse(jsonStr);
-              panel.webview.postMessage({ type: 'response', data });
+              try {
+                const data = JSON.parse(jsonStr);
+                panel.webview.postMessage({ type: 'response', data });
+              } catch (parseError) {
+                console.error("Failed to parse JSON response:", jsonStr);
+                const synthesizedData = {
+                  reply: "*(The model failed to return a valid JSON format. This usually happens with experimental/nano models that do not support forced structured output).*\\n\\nRaw Output:\\n" + jsonStr,
+                  dissonanceScore: 100,
+                  dissonanceReason: "Schema mismatch: The model disregarded requested JSON constraints.",
+                  semanticNodes: [],
+                  semanticEdges: []
+                };
+                panel.webview.postMessage({ type: 'response', data: synthesizedData });
+              }
             }
           } catch (error: any) {
             console.error("Error generating response:", error);
