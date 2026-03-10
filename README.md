@@ -13,7 +13,15 @@ This extension provides a rich, webview-based chat interface allowing you to int
 
 ## Requirements
 
-You must have a valid **Gemini API Key**. Get one for free at [Google AI Studio](https://aistudio.google.com/app/apikey).
+You must have a valid **Gemini API Key**. 
+
+### How to get an API Key
+Getting a key is completely free:
+1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey).
+2. Sign in with your Google account.
+3. Click the **"Create API key"** button.
+4. If you don't have an existing Google Cloud project, select "Create API key in new project".
+5. Copy the generated key. **Do not share this key with anyone**, as it is tied to your quota and account.
 
 ## Usage
 
@@ -38,4 +46,4 @@ Then, press `F5` in VS Code to launch the Extension Development Host.
 This extension stores your API key securely in VS Code's native SecretStorage. It does not contribute any user-facing configuration settings.
 
 ---
-*Created by [Your Name]*
+*Created by Andrey Stepantsov*
