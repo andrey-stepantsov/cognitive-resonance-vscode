@@ -1,20 +1,15 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Cognitive Resonance Webview UI
 
-# Run and deploy your AI Studio app
+This directory contains the React frontend code for the Cognitive Resonance VSCode Extension.
 
-This contains everything you need to run your app locally.
+It was originally ported from a Google AI Studio prototype. The frontend is built using Vite and React, and is configured to output an unhashed bundle so that the VSCode Extension Host (`src/extension.ts`) can predictably load it into a Webview Panel.
 
-View your app in AI Studio: https://ai.studio/apps/3cc42d2f-3f00-4477-8e12-320bcff94011
+## Development
 
-## Run Locally
+The webview UI is built automatically when compiling the extension using the `build:all` or `build:webview` scripts in the root `package.json`.
 
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+**Important Changes from Prototype:**
+- No local `.env.local` is used. The Gemini API key is managed securely via the VSCode Secret Storage (`cognitive-resonance.setApiKey` command).
+- The AI API calls are NOT made directly from the browser/React code. This is to avoid exposing the user's API key within the webview environment.
+- Instead, the React code sends messages to the Extension Host (via `vscode.postMessage`), which proxies the request to the Google Gen AI SDK.
+- The webview UI relies on the `window.vscode` object injected by the extension host. Running this standalone via `npm run dev` will lack the necessary extension context.
