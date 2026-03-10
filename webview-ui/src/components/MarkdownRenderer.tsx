@@ -75,7 +75,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
                   style={vscDarkPlus as any}
                   language={match[1]}
                   PreTag="div"
-                  customStyle={{ margin: 0, padding: '1rem', background: '#1e1e2e' }}
+                  customStyle={{ margin: 0, padding: '1rem', background: 'transparent' }}
+                  codeTagProps={{ style: { background: 'transparent' } }}
                   className="!m-0 text-sm"
                 >
                   {codeStr}
