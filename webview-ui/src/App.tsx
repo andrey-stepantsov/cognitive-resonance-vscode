@@ -107,7 +107,8 @@ export default function App() {
         setIsLoading(false);
       } else if (message.type === 'error') {
         console.error("Extension Host Error:", message.error);
-        setMessages(prev => [...prev, { role: 'model', content: "Error: Could not process request from Extension Host." }]);
+        const errorText = message.error ? `Error: ${message.error}` : "Error: Could not process the request. Check your API Key or Network.";
+        setMessages(prev => [...prev, { role: 'model', content: errorText }]);
         setIsLoading(false);
       } else if (message.type === 'models_loaded') {
         const models = message.data || message.models || [];

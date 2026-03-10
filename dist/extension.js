@@ -175,7 +175,11 @@ function setupChatPanel(panel, context, apiKey) {
                 // Exclude nano models as they generally struggle with strict, large JSON schema enforcement required for the semantic graph
                 if (name.includes('nano'))
                     continue;
-                modelList.push({ name: m.name, displayName: m.displayName, description: m.description });
+                modelList.push({
+                    name: m.name,
+                    displayName: m.displayName || m.name.replace('models/', ''),
+                    description: m.description || "A Google Gemini generative model."
+                });
             }
             panel.webview.postMessage({ type: 'models_loaded', models: modelList });
         }
@@ -221,7 +225,8 @@ function setupChatPanel(panel, context, apiKey) {
                 }
                 catch (error) {
                     console.error("Error generating response:", error);
-                    panel.webview.postMessage({ type: 'error', error: error.message });
+                    const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+                    panel.webview.postMessage({ type: 'error', error: errorMessage });
                 }
                 return;
             case 'save_history':
