@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on version tags like v0.0.1, v1.0.0, etc.
+
+jobs:
+  build-and-release:
+    name: Build and Release VSIX
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required for creating a GitHub Release
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Webview and Extension
+        run: npm run build:all
+
+      - name: Package Extension
+        run: npx @vscode/vsce package
+
+      - name: Get VSIX filename
+        id: vsix_name
+        run: echo "VSIX_FILE=$(ls *.vsix)" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.VSIX_FILE }}
+          generate_release_notes: true
