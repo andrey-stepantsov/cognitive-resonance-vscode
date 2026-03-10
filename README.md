@@ -25,9 +25,12 @@ Getting a key is completely free:
 
 ## Usage
 
-1. **Set your API Key**: Run `Cognitive Resonance: Set Gemini API Key` from the Command Palette (`Cmd+Shift+P`).
-2. **Start a Session**: Run `Cognitive Resonance: Start Session` to open the main chat webview.
-3. **Resume a Session**: Download your history from an active chat, then use `Cognitive Resonance: Resume Session` to continue it later.
+All features are accessed via the VS Code Command Palette (`Cmd+Shift+P` on Mac, `Ctrl+Shift+P` on Windows/Linux):
+
+1. **`Cognitive Resonance: Set Gemini API Key`**: Run this first to securely save your API key.
+2. **`Cognitive Resonance: Start Session`**: Opens the main chat webview to begin a new conversation.
+3. **`Cognitive Resonance: Resume Session`**: Select a previously downloaded `.json` history file to continue a past conversation.
+4. **`Cognitive Resonance: View History`**: Select a `.json` history file strictly for a read-only review of the semantic graph and dialogue.
 
 ## Setting Up for Local Development
 

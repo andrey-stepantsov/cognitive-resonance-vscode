@@ -280,9 +280,13 @@ export default function App() {
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {messages.length === 0 && (
-            <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-4">
-              <BrainCircuit className="w-12 h-12 opacity-20" />
-              <p className="text-sm">Initiate conversation to observe internal state.</p>
+            <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-4 px-8 text-center">
+              <BrainCircuit className="w-12 h-12 opacity-20 mb-2" />
+              <p className="text-sm font-medium text-zinc-400">Initiate conversation to observe internal state.</p>
+              <div className="text-xs opacity-70 space-y-2 max-w-sm">
+                <p>💡 Tip: You can save this session at any time using the download button in the top right.</p>
+                <p>Use the <b>Cognitive Resonance: Resume Session</b> command later to pick up right where you left off, or <b>View History</b> for a read-only review.</p>
+              </div>
             </div>
           )}
           
