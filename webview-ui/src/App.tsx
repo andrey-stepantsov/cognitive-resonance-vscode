@@ -405,7 +405,7 @@ export default function App() {
           <h1 className="text-sm font-semibold tracking-wide text-zinc-100 flex items-center gap-2">
             Cognitive Resonance
             <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded text-[10px] font-mono border border-zinc-700/50">
-              v0.0.7
+              v0.0.8
             </span>
           </h1>
         </div>

@@ -208,7 +208,7 @@ function setupChatPanel(panel, context, apiKey) {
             switch (message.type) {
                 case 'prompt':
                     try {
-                        const baseInstruction = "You are an AI assistant. Along with your reply, you must analyze your own internal state. Calculate your 'dissonance score' (0-100) representing your uncertainty, conflicting information, or cognitive load. Also, extract a semantic graph of the concepts you are currently processing.";
+                        const baseInstruction = "You are an AI assistant. Along with your reply, you must analyze your own internal state. Calculate your 'dissonance score' (0-100) representing your uncertainty, conflicting information, or cognitive load. Also, extract a semantic graph of the concepts you are currently processing. FORMATTING: Always use fenced code blocks with language tags for code (e.g. ```python). For diagrams, always use ```mermaid fenced code blocks with proper newlines between nodes — never put mermaid syntax inline.";
                         const customInstruction = message.systemPrompt ? `\n\nUSER CUSTOM SYSTEM INSTRUCTIONS:\n${message.systemPrompt}` : "";
                         const finalInstruction = baseInstruction + customInstruction;
                         // Build content history, injecting multimodal file parts on the last user turn
