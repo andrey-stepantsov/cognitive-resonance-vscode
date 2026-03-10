@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
-import { Send, BrainCircuit, Activity, Network, Loader2, X, Download } from 'lucide-react';
+import { Send, BrainCircuit, Activity, Network, Loader2, X, Download, Copy, Check, AlertTriangle } from 'lucide-react';
 import { SemanticGraph, Node, Edge } from './components/SemanticGraph';
 import { DissonanceMeter } from './components/DissonanceMeter';
 import { clsx } from 'clsx';
@@ -57,6 +57,7 @@ interface Message {
   content: string;
   internalState?: InternalState;
   modelTurnIndex?: number;
+  isError?: boolean;
 }
 
 export default function App() {
@@ -66,6 +67,7 @@ export default function App() {
   const [selectedTurnIndex, setSelectedTurnIndex] = useState<number | null>(null);
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   
   const [availableModels, setAvailableModels] = useState<any[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('gemini-3.1-pro-preview');
@@ -107,8 +109,8 @@ export default function App() {
         setIsLoading(false);
       } else if (message.type === 'error') {
         console.error("Extension Host Error:", message.error);
-        const errorText = message.error ? `Error: ${message.error}` : "Error: Could not process the request. Check your API Key or Network.";
-        setMessages(prev => [...prev, { role: 'model', content: errorText }]);
+        const errorText = message.error || "Could not process the request. Check your API Key or Network.";
+        setMessages(prev => [...prev, { role: 'model', content: errorText, isError: true }]);
         setIsLoading(false);
       } else if (message.type === 'models_loaded') {
         const models = message.data || message.models || [];
@@ -286,17 +288,43 @@ export default function App() {
                 msg.role === 'user' ? "items-end" : "items-start"
               )}
             >
-              <div 
-                className={cn(
-                  "max-w-[80%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed",
-                  msg.role === 'user' 
-                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 rounded-br-sm" 
-                    : "bg-zinc-800/80 text-zinc-200 border border-zinc-700/50 rounded-bl-sm"
-                )}
-              >
-                {msg.content}
-              </div>
-              {msg.role === 'model' && msg.modelTurnIndex !== undefined && (
+              {msg.isError ? (
+                <div className="max-w-[80%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed bg-red-950/60 text-red-200 border border-red-800/60 rounded-bl-sm">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-red-400 mb-1">Extension Error</p>
+                      <p className="break-words whitespace-pre-wrap">{msg.content}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(msg.content);
+                      setCopiedIndex(idx);
+                      setTimeout(() => setCopiedIndex(null), 2000);
+                    }}
+                    className="mt-2.5 flex items-center gap-1.5 text-xs text-red-400/70 hover:text-red-300 transition-colors"
+                  >
+                    {copiedIndex === idx ? (
+                      <><Check className="w-3 h-3" /> Copied!</>
+                    ) : (
+                      <><Copy className="w-3 h-3" /> Copy error to clipboard</>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div 
+                  className={cn(
+                    "max-w-[80%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed",
+                    msg.role === 'user' 
+                      ? "bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 rounded-br-sm" 
+                      : "bg-zinc-800/80 text-zinc-200 border border-zinc-700/50 rounded-bl-sm"
+                  )}
+                >
+                  {msg.content}
+                </div>
+              )}
+              {msg.role === 'model' && msg.modelTurnIndex !== undefined && !msg.isError && (
                 <button 
                   onClick={() => {
                     setSelectedTurnIndex(msg.modelTurnIndex!);

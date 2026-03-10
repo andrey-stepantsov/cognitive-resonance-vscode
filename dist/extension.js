@@ -39,6 +39,7 @@ const vscode = __importStar(require("vscode"));
 const genai_1 = require("@google/genai");
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
+const ai_utils_1 = require("./ai-utils");
 function activate(context) {
     console.log('Cognitive Resonance extension is now active!');
     let setApiKeyCommand = vscode.commands.registerCommand('cognitive-resonance.setApiKey', async () => {
@@ -156,31 +157,11 @@ function setupChatPanel(panel, context, apiKey) {
     (async () => {
         try {
             const modelsResponse = await ai.models.list();
-            const modelList = [];
+            const rawModels = [];
             for await (const m of modelsResponse) {
-                if (!m.name)
-                    continue;
-                const name = m.name.toLowerCase();
-                // Only include primary Gemini generative models
-                if (!name.includes('gemini-'))
-                    continue;
-                // Exclude legacy single-turn vision models
-                if (name.includes('-vision'))
-                    continue;
-                // Exclude specialized and embedding models
-                if (name.includes('embedding') || name.includes('aqa') || name.includes('audio') || name.includes('learn'))
-                    continue;
-                if (name.includes('bison') || name.includes('gecko'))
-                    continue;
-                // Exclude nano models as they generally struggle with strict, large JSON schema enforcement required for the semantic graph
-                if (name.includes('nano'))
-                    continue;
-                modelList.push({
-                    name: m.name,
-                    displayName: m.displayName || m.name.replace('models/', ''),
-                    description: m.description || "A Google Gemini generative model."
-                });
+                rawModels.push(m);
             }
+            const modelList = (0, ai_utils_1.filterModelList)(rawModels);
             panel.webview.postMessage({ type: 'models_loaded', models: modelList });
         }
         catch (err) {
@@ -189,63 +170,59 @@ function setupChatPanel(panel, context, apiKey) {
     })();
     // Handle messages from the webview
     panel.webview.onDidReceiveMessage(async (message) => {
-        switch (message.type) {
-            case 'prompt':
-                try {
-                    const response = await ai.models.generateContent({
-                        model: message.model || "gemini-3.1-pro-preview",
-                        contents: message.history.map((m) => ({
-                            role: m.role,
-                            parts: [{ text: m.content }]
-                        })),
-                        config: {
-                            systemInstruction: "You are an AI assistant. Along with your reply, you must analyze your own internal state. Calculate your 'dissonance score' (0-100) representing your uncertainty, conflicting information, or cognitive load. Also, extract a semantic graph of the concepts you are currently processing.",
-                            responseMimeType: "application/json",
-                            responseSchema: message.responseSchema
-                        }
-                    });
-                    const jsonStr = response.text;
-                    if (jsonStr) {
-                        try {
-                            const data = JSON.parse(jsonStr);
+        try {
+            switch (message.type) {
+                case 'prompt':
+                    try {
+                        const response = await ai.models.generateContent({
+                            model: message.model || "gemini-3.1-pro-preview",
+                            contents: message.history.map((m) => ({
+                                role: m.role,
+                                parts: [{ text: m.content }]
+                            })),
+                            config: {
+                                systemInstruction: "You are an AI assistant. Along with your reply, you must analyze your own internal state. Calculate your 'dissonance score' (0-100) representing your uncertainty, conflicting information, or cognitive load. Also, extract a semantic graph of the concepts you are currently processing.",
+                                responseMimeType: "application/json",
+                                responseSchema: message.responseSchema
+                            }
+                        });
+                        const jsonStr = response.text;
+                        if (jsonStr) {
+                            const data = (0, ai_utils_1.parseModelResponse)(jsonStr);
                             panel.webview.postMessage({ type: 'response', data });
                         }
-                        catch (parseError) {
-                            console.error("Failed to parse JSON response:", jsonStr);
-                            const synthesizedData = {
-                                reply: "*(The model failed to return a valid JSON format. This usually happens with experimental/nano models that do not support forced structured output).*\\n\\nRaw Output:\\n" + jsonStr,
-                                dissonanceScore: 100,
-                                dissonanceReason: "Schema mismatch: The model disregarded requested JSON constraints.",
-                                semanticNodes: [],
-                                semanticEdges: []
-                            };
-                            panel.webview.postMessage({ type: 'response', data: synthesizedData });
+                    }
+                    catch (error) {
+                        console.error("Error generating response:", error);
+                        const errorMessage = (0, ai_utils_1.formatApiError)(error);
+                        panel.webview.postMessage({ type: 'error', error: errorMessage });
+                    }
+                    return;
+                case 'save_history':
+                    try {
+                        const uri = await vscode.window.showSaveDialog({
+                            filters: { 'JSON': ['json'] },
+                            defaultUri: vscode.Uri.file(`cognitive-resonance-history-${new Date().toISOString().split('T')[0]}.json`),
+                            saveLabel: 'Save Session History'
+                        });
+                        if (uri) {
+                            await fs.promises.writeFile(uri.fsPath, JSON.stringify(message.data, null, 2), 'utf8');
+                            vscode.window.showInformationMessage('Session history saved successfully.');
                         }
                     }
-                }
-                catch (error) {
-                    console.error("Error generating response:", error);
-                    const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
-                    panel.webview.postMessage({ type: 'error', error: errorMessage });
-                }
-                return;
-            case 'save_history':
-                try {
-                    const uri = await vscode.window.showSaveDialog({
-                        filters: { 'JSON': ['json'] },
-                        defaultUri: vscode.Uri.file(`cognitive-resonance-history-${new Date().toISOString().split('T')[0]}.json`),
-                        saveLabel: 'Save Session History'
-                    });
-                    if (uri) {
-                        await fs.promises.writeFile(uri.fsPath, JSON.stringify(message.data, null, 2), 'utf8');
-                        vscode.window.showInformationMessage('Session history saved successfully.');
+                    catch (err) {
+                        console.error("Failed to save session history:", err);
+                        vscode.window.showErrorMessage('Failed to save session history: ' + err.message);
                     }
-                }
-                catch (err) {
-                    console.error("Failed to save session history:", err);
-                    vscode.window.showErrorMessage('Failed to save session history: ' + err.message);
-                }
-                return;
+                    return;
+            }
+        }
+        catch (unexpectedError) {
+            // Safety net: prevent ANY unhandled throw from crashing the Extension Host
+            // (which would surface as the opaque "Could not process request from Extension Host" error)
+            console.error("Unexpected error in message handler:", unexpectedError);
+            const errorMessage = (0, ai_utils_1.formatApiError)(unexpectedError);
+            panel.webview.postMessage({ type: 'error', error: errorMessage });
         }
     }, undefined, context.subscriptions);
 }

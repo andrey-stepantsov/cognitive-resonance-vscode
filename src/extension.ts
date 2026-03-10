@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { GoogleGenAI } from '@google/genai';
 import * as path from 'path';
 import * as fs from 'fs';
+import { parseModelResponse, filterModelList, formatApiError } from './ai-utils';
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Cognitive Resonance extension is now active!');
@@ -161,30 +162,11 @@ function setupChatPanel(panel: vscode.WebviewPanel, context: vscode.ExtensionCon
   (async () => {
     try {
       const modelsResponse = await ai.models.list();
-      const modelList = [];
+      const rawModels = [];
       for await (const m of modelsResponse) {
-         if (!m.name) continue;
-         const name = m.name.toLowerCase();
-         
-         // Only include primary Gemini generative models
-         if (!name.includes('gemini-')) continue;
-         
-         // Exclude legacy single-turn vision models
-         if (name.includes('-vision')) continue;
-         
-         // Exclude specialized and embedding models
-         if (name.includes('embedding') || name.includes('aqa') || name.includes('audio') || name.includes('learn')) continue;
-         if (name.includes('bison') || name.includes('gecko')) continue;
-         
-         // Exclude nano models as they generally struggle with strict, large JSON schema enforcement required for the semantic graph
-         if (name.includes('nano')) continue;
-
-         modelList.push({ 
-           name: m.name, 
-           displayName: m.displayName || m.name.replace('models/', ''), 
-           description: m.description || "A Google Gemini generative model." 
-         });
+        rawModels.push(m);
       }
+      const modelList = filterModelList(rawModels);
       panel.webview.postMessage({ type: 'models_loaded', models: modelList });
     } catch (err) {
       console.error("Failed to fetch Google Gen AI models", err);
@@ -194,6 +176,7 @@ function setupChatPanel(panel: vscode.WebviewPanel, context: vscode.ExtensionCon
   // Handle messages from the webview
   panel.webview.onDidReceiveMessage(
     async message => {
+      try {
       switch (message.type) {
         case 'prompt':
           try {
@@ -212,24 +195,12 @@ function setupChatPanel(panel: vscode.WebviewPanel, context: vscode.ExtensionCon
             
             const jsonStr = response.text;
             if (jsonStr) {
-              try {
-                const data = JSON.parse(jsonStr);
-                panel.webview.postMessage({ type: 'response', data });
-              } catch (parseError) {
-                console.error("Failed to parse JSON response:", jsonStr);
-                const synthesizedData = {
-                  reply: "*(The model failed to return a valid JSON format. This usually happens with experimental/nano models that do not support forced structured output).*\\n\\nRaw Output:\\n" + jsonStr,
-                  dissonanceScore: 100,
-                  dissonanceReason: "Schema mismatch: The model disregarded requested JSON constraints.",
-                  semanticNodes: [],
-                  semanticEdges: []
-                };
-                panel.webview.postMessage({ type: 'response', data: synthesizedData });
-              }
+              const data = parseModelResponse(jsonStr);
+              panel.webview.postMessage({ type: 'response', data });
             }
           } catch (error: any) {
             console.error("Error generating response:", error);
-            const errorMessage = error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+            const errorMessage = formatApiError(error);
             panel.webview.postMessage({ type: 'error', error: errorMessage });
           }
           return;
@@ -249,6 +220,13 @@ function setupChatPanel(panel: vscode.WebviewPanel, context: vscode.ExtensionCon
              vscode.window.showErrorMessage('Failed to save session history: ' + err.message);
           }
           return;
+      }
+      } catch (unexpectedError: any) {
+        // Safety net: prevent ANY unhandled throw from crashing the Extension Host
+        // (which would surface as the opaque "Could not process request from Extension Host" error)
+        console.error("Unexpected error in message handler:", unexpectedError);
+        const errorMessage = formatApiError(unexpectedError);
+        panel.webview.postMessage({ type: 'error', error: errorMessage });
       }
     },
     undefined,

@@ -2,7 +2,7 @@
   "name": "cognitive-resonance",
   "displayName": "Cognitive Resonance",
   "description": "Port of the Google AI Studio Cognitive Resonance prototype.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -48,12 +48,15 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "build:webview": "cd webview-ui && npm install && npm run build",
-    "build:all": "npm run compile && npm run build:webview"
+    "build:all": "npm run compile && npm run build:webview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
     "@types/node": "18.x",
-    "typescript": "^5.3.3"
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.3",
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "@google/genai": "^1.29.0"

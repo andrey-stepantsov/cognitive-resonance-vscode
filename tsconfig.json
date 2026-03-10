@@ -16,6 +16,8 @@
   "exclude": [
     "node_modules",
     ".vscode-test",
-    "webview-ui"
+    "webview-ui",
+    "src/**/*.test.ts",
+    "vitest.config.ts"
   ]
 }
