@@ -4,6 +4,28 @@ Welcome to **Cognitive Resonance**, an experimental VS Code extension ported fro
 
 This extension provides a rich, webview-based chat interface allowing you to interact with Google's Gemini generative models directly inside your editor. Wait—it's not just another chat wrapper! Cognitive Resonance provides real-time introspection into the model's "Internal State," visualizing both a Semantic Graph of concepts currently in context and a "Dissonance Meter."
 
+<p align="center">
+  <img src="docs/screenshots/graph-sample-ai-irc.png" width="800" alt="Semantic Graph">
+</p>
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <b>Semantic Search & Navigation</b><br><br>
+      <img src="docs/screenshots/search-sample-ai-irc.png" alt="Semantic Search Panel">
+    </td>
+    <td width="50%" align="center">
+      <b>Custom Gem Personas</b><br><br>
+      <img src="docs/screenshots/gem-sample.png" alt="Custom Gem Profiles">
+    </td>
+  </tr>
+</table>
+
+<p align="center">
+  <b>Native Mermaid Rendering</b><br>
+  <img src="docs/screenshots/diagram-sample-ai-irc.png" width="800" alt="Mermaid Rendering">
+</p>
+
 ## Features
 
 - **Rich Webview Interface**: A dedicated panel for seamless conversation, supporting standard Markdown and code blocks.
