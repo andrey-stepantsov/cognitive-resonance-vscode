@@ -65,19 +65,21 @@ All features are accessed via the VS Code Command Palette (`Cmd+Shift+P` on Mac,
 1. **`Cognitive Resonance: Set Gemini API Key`**: Run this first to securely save your API key.
 2. **`Cognitive Resonance: Start Session`**: Opens the main chat webview to begin a new conversation, or open the Session Sidebar to load old ones.
 3. **`Cognitive Resonance: View History`**: Select an exported `.json` history file strictly for a read-only review of the semantic graph and dialogue.
+4. **`Cognitive Resonance: Browse Public Gallery`**: Browse community-submitted chats from the public gallery and open them directly in the interactive History Visualizer — no browser needed.
 5. **`Cognitive Resonance: Export Diagnostics`**: Copies a formatted diagnostics report (all logged errors) to your clipboard for easy sharing.
 
 ## Public Chat Gallery (Submit Your Chats!)
 
-We maintain a public, statically generated gallery of fascinating Cognitive Resonance conversations right in this repository. 
+We maintain a public gallery of fascinating Cognitive Resonance conversations. Browse them natively inside VS Code:
 
-**[🔗 View the Live Gallery Here](https://andrey-stepantsov.github.io/cognitive-resonance-vscode/gallery/)**
+1. Open the Command Palette and run **`Cognitive Resonance: Browse Public Gallery`**.
+2. Select a chat from the QuickPick list to open it in the interactive History Visualizer — complete with Semantic Graphs, Dissonance Meters, and Mermaid diagrams.
 
 **How to submit your own chat to the gallery:**
 1. Use the extension to download a backup of your session (`.json` format).
 2. Open a **Pull Request** to this repository.
 3. Place your `.json` file inside the `data/gallery-sessions/` directory.
-4. Once merged, a GitHub Action (or a repository maintainer running `node tools/build_gallery.js`) will regenerate the `docs/gallery/index.html` file and deploy it to GitHub Pages automatically.
+4. Once merged, a repository maintainer runs `node tools/build_gallery.js` to update the gallery registry and deploys it to GitHub Pages.
 
 _Note: Please ensure your exported JSON does not contain sensitive API keys or personal file paths before submitting a PR._
 

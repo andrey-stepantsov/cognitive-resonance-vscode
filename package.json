@@ -45,6 +45,10 @@
       {
         "command": "cognitive-resonance.exportDiagnostics",
         "title": "Cognitive Resonance: Export Diagnostics"
+      },
+      {
+        "command": "cognitive-resonance.browseGallery",
+        "title": "Cognitive Resonance: Browse Public Gallery"
       }
     ]
   },

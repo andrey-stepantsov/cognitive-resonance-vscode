@@ -40866,7 +40866,74 @@ function activate(context) {
     await vscode.env.clipboard.writeText(report);
     vscode.window.showInformationMessage(`Diagnostics report copied to clipboard (${log.trim().split("\n").length} entries).`);
   });
-  context.subscriptions.push(setApiKeyCommand, startSessionCommand, loadSessionCommand, viewHistoryCommand, exportDiagnosticsCommand);
+  const GALLERY_REGISTRY_URL = "https://andrey-stepantsov.github.io/cognitive-resonance-vscode/gallery/index.json";
+  const RAW_GITHUB_BASE_URL = "https://raw.githubusercontent.com/andrey-stepantsov/cognitive-resonance-vscode/main/data/gallery-sessions";
+  let browseGalleryCommand = vscode.commands.registerCommand("cognitive-resonance.browseGallery", async () => {
+    try {
+      const entries = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: "Loading Gallery...", cancellable: false },
+        async () => {
+          const res = await fetch(GALLERY_REGISTRY_URL);
+          if (!res.ok) {
+            throw new Error(`Failed to fetch gallery registry (HTTP ${res.status})`);
+          }
+          return res.json();
+        }
+      );
+      if (!entries || entries.length === 0) {
+        vscode.window.showInformationMessage("The public gallery is currently empty.");
+        return;
+      }
+      const items = entries.map((entry) => ({
+        label: `$(book)  ${entry.title}`,
+        description: `${entry.model}  \xB7  ${entry.messageCount} turns`,
+        detail: `${entry.preview}${entry.tags && entry.tags.length > 0 ? "\n$(tag) " + entry.tags.join(", ") : ""}`,
+        filename: entry.filename
+      }));
+      const selected = await vscode.window.showQuickPick(items, {
+        placeHolder: "Select a chat to view in the History Visualizer",
+        matchOnDescription: true,
+        matchOnDetail: true
+      });
+      if (!selected) {
+        return;
+      }
+      const rawUrl = `${RAW_GITHUB_BASE_URL}/${selected.filename}`;
+      const data = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `Downloading: ${selected.filename}...`, cancellable: false },
+        async () => {
+          const res = await fetch(rawUrl);
+          if (!res.ok) {
+            throw new Error(`Failed to download chat (HTTP ${res.status})`);
+          }
+          return res.json();
+        }
+      );
+      if (!data || !Array.isArray(data.messages)) {
+        vscode.window.showErrorMessage("Invalid gallery chat format.");
+        return;
+      }
+      const panel = vscode.window.createWebviewPanel(
+        "cognitiveResonanceHistory",
+        `Gallery: ${selected.filename.replace(".json", "")}`,
+        vscode.ViewColumn.One,
+        {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+          localResourceRoots: [vscode.Uri.file(path3.join(context.extensionPath, "webview-ui", "dist"))]
+        }
+      );
+      panel.webview.html = getWebviewContent(panel.webview, context.extensionPath);
+      setTimeout(() => {
+        panel.webview.postMessage({ type: "load_history", data, filename: selected.filename });
+      }, 500);
+    } catch (error) {
+      console.error("Error browsing gallery:", error);
+      appendDiagnostic(storagePath, { level: "error", context: "browseGallery", message: formatApiError(error) });
+      vscode.window.showErrorMessage("Gallery error: " + (error.message || error));
+    }
+  });
+  context.subscriptions.push(setApiKeyCommand, startSessionCommand, loadSessionCommand, viewHistoryCommand, exportDiagnosticsCommand, browseGalleryCommand);
 }
 function setupChatPanel(panel, context, apiKey) {
   const storagePath = context.globalStorageUri.fsPath;
