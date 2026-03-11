@@ -10,11 +10,15 @@ This extension provides a rich, webview-based chat interface allowing you to int
 
 <table>
   <tr>
-    <td width="50%" align="center">
+    <td width="33%" align="center">
       <b>Semantic Search & Navigation</b><br><br>
       <img src="docs/screenshots/search-sample-ai-irc.png" alt="Semantic Search Panel">
     </td>
-    <td width="50%" align="center">
+    <td width="33%" align="center">
+      <b>Cognitive Dissonance</b><br><br>
+      <img src="docs/screenshots/dissonance-sample-ai-irc.png" alt="Cognitive Dissonance Modeling">
+    </td>
+    <td width="33%" align="center">
       <b>Custom Gem Personas</b><br><br>
       <img src="docs/screenshots/gem-sample.png" alt="Custom Gem Profiles">
     </td>
