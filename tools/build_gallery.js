@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const sessionsDir = path.join(__dirname, '..', 'data', 'gallery-sessions');
-const outputDir = path.join(__dirname, '..', 'gallery');
+const outputDir = path.join(__dirname, '..', 'docs', 'gallery');
 
 // Ensure directories exist
 if (!fs.existsSync(sessionsDir)) {
