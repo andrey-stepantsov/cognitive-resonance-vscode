@@ -2,7 +2,7 @@
   "name": "cognitive-resonance",
   "displayName": "Cognitive Resonance",
   "description": "Port of the Google AI Studio Cognitive Resonance prototype.",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "engines": {
     "vscode": "^1.85.0"
   },
