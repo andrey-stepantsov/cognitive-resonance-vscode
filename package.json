@@ -2,7 +2,7 @@
   "name": "cognitive-resonance",
   "displayName": "Cognitive Resonance",
   "description": "Port of the Google AI Studio Cognitive Resonance prototype.",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -50,8 +50,8 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "compile": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
+    "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --watch",
     "build:webview": "cd webview-ui && npm install && export NODE_OPTIONS='--max-old-space-size=8192' && npm run build",
     "build:all": "npm run compile && npm run build:webview",
     "test": "vitest run",
@@ -60,6 +60,7 @@
   "devDependencies": {
     "@types/node": "18.x",
     "@types/vscode": "^1.85.0",
+    "esbuild": "^0.27.3",
     "typescript": "^5.3.3",
     "vitest": "^3.2.4"
   },

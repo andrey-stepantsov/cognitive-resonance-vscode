@@ -19,3 +19,4 @@ webview-ui/tsconfig.json
 webview-ui/tsconfig.node.json
 webview-ui/package-lock.json
 *.vsix
+node_modules/**
