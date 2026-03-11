@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { GoogleGenAI } from '@google/genai';
 import * as path from 'path';
 import * as fs from 'fs';
+import Fuse from 'fuse.js';
 import { parseModelResponse, filterModelList, formatApiError, getMimeType } from './ai-utils';
 import { appendDiagnostic, readDiagnosticLog, formatDiagnosticReport } from './diagnostics';
 
@@ -342,6 +343,83 @@ function setupChatPanel(panel: vscode.WebviewPanel, context: vscode.ExtensionCon
             broadcastSessions();
           } catch (err) {
              console.error("Failed to delete session:", err);
+          }
+          return;
+        case 'search_history':
+          try {
+            const query = message.query;
+            if (!query || query.trim() === '') {
+               panel.webview.postMessage({ type: 'search_results_loaded', results: [] });
+               return;
+            }
+
+            const files = await fs.promises.readdir(sessionsPath);
+            const searchableItems: any[] = [];
+
+            for (const file of files) {
+              if (file.endsWith('.json')) {
+                const p = path.join(sessionsPath, file);
+                const stat = await fs.promises.stat(p);
+                const content = await fs.promises.readFile(p, 'utf8');
+                try {
+                  const json = JSON.parse(content);
+                  const sessionId = file.replace('.json', '');
+                  
+                  if (json.messages && Array.isArray(json.messages)) {
+                    json.messages.forEach((msg: any, idx: number) => {
+                      if (msg.role === 'model' && msg.internalState && msg.internalState.semanticNodes && msg.internalState.semanticNodes.length > 0) {
+                        const nodes = msg.internalState.semanticNodes.map((n: any) => n.label || n.id);
+                        searchableItems.push({
+                           sessionId,
+                           sessionPreview: json.messages.length > 0 ? (json.messages[0].content.substring(0, 40) + '...') : 'Empty Session',
+                           timestamp: stat.mtimeMs,
+                           turnIndex: idx, // The exact message index in the chat
+                           contextSnippet: msg.content.substring(0, 80) + '...',
+                           nodes: nodes
+                        });
+                      }
+                    });
+                  }
+                } catch (e) { }
+              }
+            }
+
+            // Configure Fuse for fuzzy search against individual turns
+            const options = {
+              keys: ['nodes'],
+              threshold: 0.3,
+              ignoreLocation: true,
+              includeMatches: true
+            };
+            const fuse = new Fuse(searchableItems, options);
+            const rawResults = fuse.search(query);
+            
+            // Map to RankedResult format
+            const rankedResults = rawResults.map(result => {
+               // Extract the specific nodes that caused the match
+               let matchedConcepts: string[] = [];
+               if (result.matches) {
+                 result.matches.forEach(match => {
+                   if (match.key === 'nodes') {
+                     matchedConcepts.push(match.value as string);
+                   }
+                 });
+               }
+               
+               return {
+                 sessionId: result.item.sessionId,
+                 sessionPreview: result.item.sessionPreview,
+                 timestamp: result.item.timestamp,
+                 turnIndex: result.item.turnIndex,
+                 contextSnippet: result.item.contextSnippet,
+                 matchedConcepts: Array.from(new Set(matchedConcepts)) // deduplicate
+               };
+            });
+
+            panel.webview.postMessage({ type: 'search_results_loaded', results: rankedResults, query });
+
+          } catch(err) {
+            console.error("Failed to search history:", err);
           }
           return;
         case 'request_file_selection':

@@ -32,6 +32,9 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.activate = activate;
 exports.deactivate = deactivate;
@@ -39,6 +42,7 @@ const vscode = __importStar(require("vscode"));
 const genai_1 = require("@google/genai");
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
+const fuse_js_1 = __importDefault(require("fuse.js"));
 const ai_utils_1 = require("./ai-utils");
 const diagnostics_1 = require("./diagnostics");
 function activate(context) {
@@ -345,6 +349,77 @@ function setupChatPanel(panel, context, apiKey) {
                     }
                     catch (err) {
                         console.error("Failed to delete session:", err);
+                    }
+                    return;
+                case 'search_history':
+                    try {
+                        const query = message.query;
+                        if (!query || query.trim() === '') {
+                            panel.webview.postMessage({ type: 'search_results_loaded', results: [] });
+                            return;
+                        }
+                        const files = await fs.promises.readdir(sessionsPath);
+                        const searchableItems = [];
+                        for (const file of files) {
+                            if (file.endsWith('.json')) {
+                                const p = path.join(sessionsPath, file);
+                                const stat = await fs.promises.stat(p);
+                                const content = await fs.promises.readFile(p, 'utf8');
+                                try {
+                                    const json = JSON.parse(content);
+                                    const sessionId = file.replace('.json', '');
+                                    if (json.messages && Array.isArray(json.messages)) {
+                                        json.messages.forEach((msg, idx) => {
+                                            if (msg.role === 'model' && msg.internalState && msg.internalState.semanticNodes && msg.internalState.semanticNodes.length > 0) {
+                                                const nodes = msg.internalState.semanticNodes.map((n) => n.label || n.id);
+                                                searchableItems.push({
+                                                    sessionId,
+                                                    sessionPreview: json.messages.length > 0 ? (json.messages[0].content.substring(0, 40) + '...') : 'Empty Session',
+                                                    timestamp: stat.mtimeMs,
+                                                    turnIndex: idx, // The exact message index in the chat
+                                                    contextSnippet: msg.content.substring(0, 80) + '...',
+                                                    nodes: nodes
+                                                });
+                                            }
+                                        });
+                                    }
+                                }
+                                catch (e) { }
+                            }
+                        }
+                        // Configure Fuse for fuzzy search against individual turns
+                        const options = {
+                            keys: ['nodes'],
+                            threshold: 0.3,
+                            ignoreLocation: true,
+                            includeMatches: true
+                        };
+                        const fuse = new fuse_js_1.default(searchableItems, options);
+                        const rawResults = fuse.search(query);
+                        // Map to RankedResult format
+                        const rankedResults = rawResults.map(result => {
+                            // Extract the specific nodes that caused the match
+                            let matchedConcepts = [];
+                            if (result.matches) {
+                                result.matches.forEach(match => {
+                                    if (match.key === 'nodes') {
+                                        matchedConcepts.push(match.value);
+                                    }
+                                });
+                            }
+                            return {
+                                sessionId: result.item.sessionId,
+                                sessionPreview: result.item.sessionPreview,
+                                timestamp: result.item.timestamp,
+                                turnIndex: result.item.turnIndex,
+                                contextSnippet: result.item.contextSnippet,
+                                matchedConcepts: Array.from(new Set(matchedConcepts)) // deduplicate
+                            };
+                        });
+                        panel.webview.postMessage({ type: 'search_results_loaded', results: rankedResults, query });
+                    }
+                    catch (err) {
+                        console.error("Failed to search history:", err);
                     }
                     return;
                 case 'request_file_selection':

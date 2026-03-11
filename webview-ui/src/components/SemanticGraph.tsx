@@ -18,9 +18,10 @@ export interface Edge {
 interface SemanticGraphProps {
   nodes: Node[];
   edges: Edge[];
+  onNodeClick?: (nodeId: string) => void;
 }
 
-export const SemanticGraph: React.FC<SemanticGraphProps> = ({ nodes, edges }) => {
+export const SemanticGraph: React.FC<SemanticGraphProps> = ({ nodes, edges, onNodeClick }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -69,7 +70,13 @@ export const SemanticGraph: React.FC<SemanticGraphProps> = ({ nodes, edges }) =>
       .join("circle")
       .attr("r", (d: any) => (d.weight || 5) * 2 + 5)
       .attr("fill", "#6366f1") // indigo-500
-      .call(drag(simulation) as any);
+      .call(drag(simulation) as any)
+      .on("click", (event: any, d: any) => {
+         if (onNodeClick) {
+           onNodeClick(d.id);
+         }
+      })
+      .style("cursor", onNodeClick ? "pointer" : "default");
 
     const label = svg.append("g")
       .attr("class", "labels")

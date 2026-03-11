@@ -193,6 +193,11 @@ export default function App() {
   const [sessions, setSessions] = useState<any[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isHistorySidebarOpen, setIsHistorySidebarOpen] = useState(false);
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
+  const [isHistorySearchActive, setIsHistorySearchActive] = useState(false);
+  const [activeSidebarTab, setActiveSidebarTab] = useState<'history' | 'search'>('history');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [targetTurnIndex, setTargetTurnIndex] = useState<number | null>(null);
 
   // Layout State
   const [isDissonancePanelOpen, setIsDissonancePanelOpen] = useState(false);
@@ -227,8 +232,21 @@ export default function App() {
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    // If we have a target turn index to jump to (from a search result click), scroll to it instead of bottom
+    if (targetTurnIndex !== null && targetTurnIndex >= 0 && targetTurnIndex < messages.length) {
+       const element = document.getElementById(`message-${targetTurnIndex}`);
+       if (element) {
+         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+         element.classList.add('bg-indigo-900/40', 'transition-colors', 'duration-500');
+         setTimeout(() => {
+           element.classList.remove('bg-indigo-900/40');
+           setTargetTurnIndex(null); // Clear it after successful jump
+         }, 2000);
+       }
+    } else if (messages.length > 0) {
+      scrollToBottom();
+    }
+  }, [messages, targetTurnIndex]);
 
   // Auto-Save Effect
   useEffect(() => {
@@ -280,8 +298,9 @@ export default function App() {
         const models = message.data || message.models || [];
         setAvailableModels(models);
       } else if (message.type === 'sessions_loaded') {
-        const list = message.sessions || [];
-        setSessions(list);
+        setSessions(message.sessions || []);
+      } else if (message.type === 'search_results_loaded') {
+        setSearchResults(message.results || []);
       } else if (message.type === 'gems_loaded') {
         const list = message.data || message.gems || [];
         const userGems = list.filter((g: any) => !g.isBuiltIn && g.id !== 'gem-general' && g.id !== 'gem-coder');
@@ -451,7 +470,21 @@ export default function App() {
 
   const handleLoadSession = (sessionId: string) => {
     vscode.postMessage({ type: 'load_specific_session', sessionId });
+    setTargetTurnIndex(null); // Clear any pending jumps if doing a standard load
     setIsHistorySidebarOpen(false);
+  };
+
+  const handleSearchResultClick = (result: any) => {
+    if (activeSessionId === result.sessionId) {
+      // Already in the session, just jump to the turn
+      setTargetTurnIndex(result.turnIndex);
+      setIsHistorySidebarOpen(false);
+    } else {
+      // Load the session first, setting the pending turn index
+      setTargetTurnIndex(result.turnIndex);
+      vscode.postMessage({ type: 'load_specific_session', sessionId: result.sessionId });
+      setIsHistorySidebarOpen(false);
+    }
   };
 
   const handleDeleteSession = (sessionId: string, e: React.MouseEvent) => {
@@ -470,6 +503,14 @@ export default function App() {
     setIsHistorySidebarOpen(false);
     handleSelectGem(defaultGemId);
   };
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      vscode.postMessage({ type: 'search_history', query: historySearchQuery });
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [historySearchQuery]);
+
 
   return (
     <div className="flex flex-col h-screen bg-[#111116] text-zinc-100 font-sans overflow-hidden">
@@ -490,7 +531,27 @@ export default function App() {
         )}
       >
         <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
-          <h2 className="text-sm font-semibold tracking-wide text-zinc-200">Session History</h2>
+          <div className="flex gap-4">
+            <button 
+              onClick={() => setActiveSidebarTab('history')}
+              className={cn(
+                "text-sm font-semibold tracking-wide transition-colors pb-1 border-b-2",
+                activeSidebarTab === 'history' ? "text-zinc-200 border-indigo-500" : "text-zinc-500 border-transparent hover:text-zinc-300"
+              )}
+            >
+              History
+            </button>
+            <button 
+              onClick={() => { setActiveSidebarTab('search'); setHistorySearchQuery(''); }}
+              className={cn(
+                "text-sm font-semibold tracking-wide transition-colors pb-1 border-b-2 flex items-center gap-1.5",
+                activeSidebarTab === 'search' ? "text-zinc-200 border-indigo-500" : "text-zinc-500 border-transparent hover:text-zinc-300"
+              )}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              Search
+            </button>
+          </div>
           <button 
             onClick={() => setIsHistorySidebarOpen(false)}
             className="text-zinc-500 hover:text-white transition-colors p-1"
@@ -499,21 +560,38 @@ export default function App() {
           </button>
         </div>
 
-        <div className="p-3">
-          <button
-            onClick={startNewSession}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 rounded-lg text-sm font-medium transition-all"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            New Session
-          </button>
-        </div>
+        {activeSidebarTab === 'search' && (
+          <div className="p-3 border-b border-zinc-800/50 bg-zinc-900/50">
+            <div className="relative">
+              <input 
+                type="text" 
+                placeholder="Search concepts across all sessions..." 
+                value={historySearchQuery}
+                onChange={(e) => setHistorySearchQuery(e.target.value)}
+                autoFocus
+                className="w-full bg-zinc-950/80 border border-zinc-700/50 rounded-lg py-2 pl-3 pr-3 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500/80 transition-colors shadow-inner"
+              />
+            </div>
+          </div>
+        )}
+
+        {activeSidebarTab === 'history' && (
+          <div className="p-3">
+            <button
+              onClick={startNewSession}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 rounded-lg text-sm font-medium transition-all"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              New Session
+            </button>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-1 mt-1">
-          {sessions.length === 0 && (
+          {activeSidebarTab === 'history' && sessions.length === 0 && (
             <div className="text-xs text-zinc-500 text-center mt-6">No previous sessions found</div>
           )}
-          {sessions.map(s => (
+          {activeSidebarTab === 'history' && sessions.map(s => (
             <div 
               key={s.id}
               onClick={() => handleLoadSession(s.id)}
@@ -537,6 +615,85 @@ export default function App() {
               </button>
             </div>
           ))}
+
+          {activeSidebarTab === 'search' && historySearchQuery.trim() === '' && (
+             <div className="text-xs text-zinc-500 text-center mt-6 px-4 leading-relaxed">
+               Type a concept to search your entire Cognitive Resonance history index.
+             </div>
+          )}
+          
+          {activeSidebarTab === 'search' && historySearchQuery.trim() !== '' && searchResults.length === 0 && (
+            <div className="text-xs text-zinc-500 text-center mt-6">No matching concepts found.</div>
+          )}
+          
+          {activeSidebarTab === 'search' && searchResults.map((r, i) => (
+            <div 
+              key={`${r.sessionId}-${r.turnIndex}-${i}`}
+              onClick={() => handleSearchResultClick(r)}
+              className={cn(
+                "group relative p-3 rounded-lg cursor-pointer transition-colors border border-transparent flex flex-col gap-1.5",
+                "hover:bg-zinc-800/60 bg-zinc-900/30 text-zinc-300 hover:border-zinc-700"
+              )}
+            >
+              <div className="flex flex-wrap gap-1">
+                 {r.matchedConcepts.map((c: string) => (
+                    <span key={c} className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded text-[10px] font-medium border border-indigo-500/30">
+                      {c}
+                    </span>
+                 ))}
+              </div>
+              <div className="text-xs text-zinc-400 italic line-clamp-2 px-1 border-l-2 border-zinc-700 ml-1">
+                "{r.contextSnippet}"
+              </div>
+              <div className="text-[10px] text-zinc-500 mt-1 flex justify-between items-center">
+                 <span>{new Date(r.timestamp).toLocaleDateString()}</span>
+                 <span className="flex items-center gap-1">
+                   Turn {r.turnIndex + 1}
+                   <svg className="w-3 h-3 text-zinc-600 group-hover:text-indigo-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                 </span>
+              </div>
+            </div>
+          ))}
+
+          {activeSidebarTab === 'search' && historySearchQuery.trim() === '' && (
+             <div className="text-xs text-zinc-500 text-center mt-6 px-4 leading-relaxed">
+               Type a concept to search your entire Cognitive Resonance history index.
+             </div>
+          )}
+          
+          {activeSidebarTab === 'search' && historySearchQuery.trim() !== '' && searchResults.length === 0 && (
+            <div className="text-xs text-zinc-500 text-center mt-6">No matching concepts found.</div>
+          )}
+          
+          {activeSidebarTab === 'search' && searchResults.map((r, i) => (
+            <div 
+              key={`${r.sessionId}-${r.turnIndex}-${i}`}
+              onClick={() => handleSearchResultClick(r)}
+              className={cn(
+                "group relative p-3 rounded-lg cursor-pointer transition-colors border border-transparent flex flex-col gap-1.5",
+                "hover:bg-zinc-800/60 bg-zinc-900/30 text-zinc-300 hover:border-zinc-700"
+              )}
+            >
+              <div className="flex flex-wrap gap-1">
+                 {r.matchedConcepts.map((c: string) => (
+                    <span key={c} className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded text-[10px] font-medium border border-indigo-500/30">
+                      {c}
+                    </span>
+                 ))}
+              </div>
+              <div className="text-xs text-zinc-400 italic line-clamp-2 px-1 border-l-2 border-zinc-700 ml-1">
+                "{r.contextSnippet}"
+              </div>
+              <div className="text-[10px] text-zinc-500 mt-1 flex justify-between items-center">
+                 <span>{new Date(r.timestamp).toLocaleDateString()}</span>
+                 <span className="flex items-center gap-1">
+                   Turn {r.turnIndex + 1}
+                   <svg className="w-3 h-3 text-zinc-600 group-hover:text-indigo-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                 </span>
+              </div>
+            </div>
+          ))}
+
         </div>
       </div>
 
@@ -656,8 +813,9 @@ export default function App() {
           {messages.map((msg, idx) => (
             <div 
               key={idx} 
+              id={`message-${idx}`}
               className={cn(
-                "flex w-full flex-col",
+                "flex w-full flex-col scroll-mt-24",
                 msg.role === 'user' ? "items-end" : "items-start"
               )}
             >
@@ -857,7 +1015,27 @@ export default function App() {
               ? `Viewing semantic markers for turn ${activeTurnIndex + 1}.` 
               : "Real-time visualization of concepts and their relationships currently active in the model's context window."}
           </p>
-          <SemanticGraph nodes={activeState?.semanticNodes ?? []} edges={activeState?.semanticEdges ?? []} />
+          <SemanticGraph 
+            nodes={activeState?.semanticNodes ?? []} 
+            edges={activeState?.semanticEdges ?? []} 
+            onNodeClick={(nodeId) => {
+               // Find the first message index where this semantic node appears in the internalState
+               const targetIdx = messages.findIndex(m => 
+                 m.internalState?.semanticNodes?.some(n => n.id === nodeId)
+               );
+               if (targetIdx !== -1) {
+                  const element = document.getElementById(`message-${targetIdx}`);
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Optional: add a temporary highlight class to the element
+                    element.classList.add('bg-indigo-900/40', 'transition-colors', 'duration-500');
+                    setTimeout(() => {
+                      element.classList.remove('bg-indigo-900/40');
+                    }, 2000);
+                  }
+               }
+            }}
+          />
         </div>
         </div>
       </div>
