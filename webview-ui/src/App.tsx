@@ -217,7 +217,10 @@ export default function App() {
   const [activeSidebarTab, setActiveSidebarTab] = useState<'history' | 'search'>('history');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [targetTurnIndex, setTargetTurnIndex] = useState<number | null>(null);
-
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editSessionName, setEditSessionName] = useState('');
+  const [markerViewMode, setMarkerViewMode] = useState<'graph' | 'list'>('graph');
+  const [markerSearchQuery, setMarkerSearchQuery] = useState('');
   // Layout State
   const [isDissonancePanelOpen, setIsDissonancePanelOpen] = useState(false);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
@@ -515,6 +518,27 @@ export default function App() {
     }
   };
 
+  const startRenameSession = (sessionId: string, currentName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingSessionId(sessionId);
+    setEditSessionName(currentName);
+  };
+
+  const handleRenameSessionSubmit = (sessionId: string, e: React.FormEvent | React.KeyboardEvent | React.MouseEvent) => {
+    e.stopPropagation();
+    if (e.type === 'submit') {
+      (e as React.FormEvent).preventDefault();
+    }
+    
+    if (editSessionName.trim()) {
+      vscode.postMessage({ type: 'rename_session', sessionId, newName: editSessionName.trim() });
+      
+      // Optimitically update local sessions state
+      setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, customName: editSessionName.trim(), preview: editSessionName.trim() } : s));
+    }
+    setEditingSessionId(null);
+  };
+
   const startNewSession = () => {
     setActiveSessionId(null);
     setMessages([]);
@@ -530,6 +554,21 @@ export default function App() {
     return () => clearTimeout(timeoutId);
   }, [historySearchQuery]);
 
+  const allMarkersList = messages
+    .filter(m => m.role === 'model' && m.internalState && m.internalState.semanticNodes)
+    .flatMap(m => m.internalState!.semanticNodes!);
+    
+  const markerCounts = new Map<string, number>();
+  allMarkersList.forEach(n => {
+    const label = n.label || n.id;
+    markerCounts.set(label, (markerCounts.get(label) || 0) + 1);
+  });
+  
+  const rankedMarkers = Array.from(markerCounts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+    
+  const filteredMarkers = rankedMarkers.filter(m => m.name.toLowerCase().includes(markerSearchQuery.toLowerCase()));
 
   return (
     <div className="flex flex-col h-screen bg-[#111116] text-zinc-100 font-sans overflow-hidden">
@@ -613,25 +652,64 @@ export default function App() {
           {activeSidebarTab === 'history' && sessions.map(s => (
             <div 
               key={s.id}
-              onClick={() => handleLoadSession(s.id)}
+              onClick={() => {
+                if (editingSessionId !== s.id) {
+                   handleLoadSession(s.id);
+                }
+              }}
               className={cn(
-                "group relative px-3 py-2.5 rounded-lg cursor-pointer transition-colors border border-transparent flex justify-between items-center",
+                "group relative px-3 py-2.5 rounded-lg transition-colors border border-transparent flex justify-between items-center",
+                editingSessionId !== s.id && "cursor-pointer",
                 activeSessionId === s.id 
                   ? "bg-zinc-800/80 border-zinc-700/50 text-indigo-300" 
                   : "hover:bg-zinc-800/50 text-zinc-400 hover:text-zinc-200"
               )}
             >
-              <div className="truncate text-xs font-medium">
-                {s.preview}
-                <div className="text-[10px] text-zinc-600 mt-0.5">{new Date(s.timestamp).toLocaleString()}</div>
-              </div>
-              
-              <button
-                onClick={(e) => handleDeleteSession(s.id, e)}
-                className="opacity-0 group-hover:opacity-100 p-1.5 text-red-500/70 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-all shrink-0"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-              </button>
+              {editingSessionId === s.id ? (
+                <div className="flex items-center gap-2 w-full" onClick={e => e.stopPropagation()}>
+                  <input
+                    type="text"
+                    value={editSessionName}
+                    onChange={(e) => setEditSessionName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleRenameSessionSubmit(s.id, e);
+                      if (e.key === 'Escape') setEditingSessionId(null);
+                    }}
+                    autoFocus
+                    className="flex-1 bg-zinc-950 border border-indigo-500/50 rounded px-2 py-1 text-xs text-zinc-100 focus:outline-none"
+                  />
+                  <button onClick={(e) => handleRenameSessionSubmit(s.id, e)} className="text-indigo-400 hover:text-indigo-300">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); setEditingSessionId(null); }} className="text-zinc-500 hover:text-zinc-300">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="truncate text-xs font-medium">
+                    {s.customName || s.preview}
+                    <div className="text-[10px] text-zinc-600 mt-0.5">{new Date(s.timestamp).toLocaleString()}</div>
+                  </div>
+                  
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-all shrink-0">
+                    <button
+                      onClick={(e) => startRenameSession(s.id, s.customName || s.preview, e)}
+                      className="p-1.5 text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors"
+                      title="Rename Session"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    </button>
+                    <button
+                      onClick={(e) => handleDeleteSession(s.id, e)}
+                      className="p-1.5 text-red-500/70 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
+                      title="Delete Session"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
 
@@ -1015,6 +1093,20 @@ export default function App() {
             <h2 className="font-medium tracking-wide text-zinc-100">Semantic Markers</h2>
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex bg-zinc-900/80 rounded-lg p-0.5 border border-zinc-800">
+              <button
+                onClick={() => setMarkerViewMode('graph')}
+                className={cn("px-2.5 py-1 text-xs font-medium rounded-md transition-all", markerViewMode === 'graph' ? "bg-zinc-700/50 text-indigo-300 shadow-sm" : "text-zinc-500 hover:text-zinc-300")}
+              >
+                Graph
+              </button>
+              <button
+                onClick={() => setMarkerViewMode('list')}
+                className={cn("px-2.5 py-1 text-xs font-medium rounded-md transition-all", markerViewMode === 'list' ? "bg-zinc-700/50 text-indigo-300 shadow-sm" : "text-zinc-500 hover:text-zinc-300")}
+              >
+                List
+              </button>
+            </div>
             {isViewingHistory && (
               <button 
                 onClick={() => setSelectedTurnIndex(null)}
@@ -1028,33 +1120,69 @@ export default function App() {
             </button>
           </div>
         </div>
-        <div className="flex-1 flex flex-col">
-          <p className="text-xs text-zinc-500 mb-4">
+        <div className="flex-1 flex flex-col min-h-0">
+          <p className="text-xs text-zinc-500 mb-4 shrink-0">
             {isViewingHistory 
               ? `Viewing semantic markers for turn ${activeTurnIndex + 1}.` 
               : "Real-time visualization of concepts and their relationships currently active in the model's context window."}
           </p>
-          <SemanticGraph 
-            nodes={activeState?.semanticNodes ?? []} 
-            edges={activeState?.semanticEdges ?? []} 
-            onNodeClick={(nodeId) => {
-               // Find the first message index where this semantic node appears in the internalState
-               const targetIdx = messages.findIndex(m => 
-                 m.internalState?.semanticNodes?.some(n => n.id === nodeId)
-               );
-               if (targetIdx !== -1) {
-                  const element = document.getElementById(`message-${targetIdx}`);
-                  if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    // Optional: add a temporary highlight class to the element
-                    element.classList.add('bg-indigo-900/40', 'transition-colors', 'duration-500');
-                    setTimeout(() => {
-                      element.classList.remove('bg-indigo-900/40');
-                    }, 2000);
-                  }
-               }
-            }}
-          />
+          
+          {markerViewMode === 'graph' ? (
+              <div className="flex-1 min-h-0 relative">
+                  <SemanticGraph 
+                    nodes={activeState?.semanticNodes ?? []} 
+                    edges={activeState?.semanticEdges ?? []} 
+                    onNodeClick={(nodeId) => {
+                       // Find the first message index where this semantic node appears in the internalState
+                       const targetIdx = messages.findIndex(m => 
+                         m.internalState?.semanticNodes?.some(n => n.id === nodeId)
+                       );
+                       if (targetIdx !== -1) {
+                          const element = document.getElementById(`message-${targetIdx}`);
+                          if (element) {
+                            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            // Optional: add a temporary highlight class to the element
+                            element.classList.add('bg-indigo-900/40', 'transition-colors', 'duration-500');
+                            setTimeout(() => {
+                              element.classList.remove('bg-indigo-900/40');
+                            }, 2000);
+                          }
+                       }
+                    }}
+                  />
+              </div>
+          ) : (
+             <div className="flex-1 flex flex-col min-h-0">
+                <input
+                  type="text"
+                  placeholder="Filter markers..."
+                  value={markerSearchQuery}
+                  onChange={(e) => setMarkerSearchQuery(e.target.value)}
+                  className="w-full bg-zinc-900/50 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500/80 mb-3 shrink-0"
+                />
+                <div className="flex-1 overflow-y-auto pr-2 space-y-1">
+                  {filteredMarkers.length === 0 && (
+                     <div className="text-zinc-500 text-xs text-center py-4">No markers found.</div>
+                  )}
+                  {filteredMarkers.map(m => (
+                    <div 
+                      key={m.name}
+                      onClick={() => {
+                         setHistorySearchQuery(m.name);
+                         setActiveSidebarTab('search');
+                         setIsHistorySidebarOpen(true);
+                      }}
+                      className="flex items-center justify-between p-2 rounded-lg bg-zinc-900/30 border border-transparent hover:border-zinc-700/50 hover:bg-zinc-800/50 cursor-pointer group transition-colors"
+                    >
+                      <span className="text-xs text-zinc-300 font-medium truncate pr-2 group-hover:text-indigo-300 transition-colors">{m.name}</span>
+                      <span className="text-[10px] font-mono bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-500 group-hover:bg-indigo-500/10 group-hover:text-indigo-400 transition-colors shrink-0">
+                        {m.count}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+             </div>
+          )}
         </div>
         </div>
       </div>
