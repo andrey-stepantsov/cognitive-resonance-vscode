@@ -146,17 +146,24 @@ function setupChatPanel(panel, context, apiKey) {
     panel.webview.html = getWebviewContent(panel.webview, context.extensionPath);
     const ai = new genai_1.GoogleGenAI({ apiKey });
     // Load saved gems from file
-    const loadGems = () => {
-        let savedGems = [];
+    const loadGemsConfig = () => {
+        let config = { gems: [], defaultGemId: 'gem-general' };
         try {
             if (fs.existsSync(gemsFilePath)) {
-                savedGems = JSON.parse(fs.readFileSync(gemsFilePath, 'utf8'));
+                const data = JSON.parse(fs.readFileSync(gemsFilePath, 'utf8'));
+                if (Array.isArray(data)) {
+                    config.gems = data;
+                }
+                else if (data && typeof data === 'object') {
+                    config.gems = data.gems || [];
+                    config.defaultGemId = data.defaultGemId || 'gem-general';
+                }
             }
         }
         catch (err) {
             console.error("Failed to parse gems file.", err);
         }
-        return savedGems;
+        return config;
     };
     // Load all sessions
     const broadcastSessions = async () => {
@@ -209,7 +216,8 @@ function setupChatPanel(panel, context, apiKey) {
             switch (message.type) {
                 case 'webview_ready':
                     // Send initial data now that webview is listening
-                    panel.webview.postMessage({ type: 'gems_loaded', gems: loadGems() });
+                    const gemsConfig = loadGemsConfig();
+                    panel.webview.postMessage({ type: 'gems_loaded', gems: gemsConfig.gems, defaultGemId: gemsConfig.defaultGemId });
                     broadcastSessions();
                     fetchModels();
                     return;
@@ -290,13 +298,17 @@ function setupChatPanel(panel, context, apiKey) {
                         vscode.window.showErrorMessage('Failed to save session history: ' + err.message);
                     }
                     return;
-                case 'save_gems':
+                case 'save_gems_config':
                     try {
-                        await fs.promises.writeFile(gemsFilePath, JSON.stringify(message.data, null, 2), 'utf8');
+                        const configPayload = {
+                            gems: message.data,
+                            defaultGemId: message.defaultGemId
+                        };
+                        await fs.promises.writeFile(gemsFilePath, JSON.stringify(configPayload, null, 2), 'utf8');
                     }
                     catch (err) {
-                        console.error("Failed to save gems to global state:", err);
-                        (0, diagnostics_1.appendDiagnostic)(storagePath, { level: 'error', context: 'saveGems', message: (0, ai_utils_1.formatApiError)(err) });
+                        console.error("Failed to save gems config to global state:", err);
+                        (0, diagnostics_1.appendDiagnostic)(storagePath, { level: 'error', context: 'saveGemsConfig', message: (0, ai_utils_1.formatApiError)(err) });
                     }
                     return;
                 case 'save_active_session':

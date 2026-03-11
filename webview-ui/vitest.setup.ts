@@ -8,3 +8,8 @@ vi.mock('mermaid', () => ({
     render: vi.fn().mockResolvedValue({ svg: '<svg data-testid="mock-mermaid"></svg>' }),
   },
 }));
+
+// Provide a global mock for vscode before modules are evaluated
+(window as any).vscode = {
+  postMessage: vi.fn()
+};

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
-import { Send, BrainCircuit, Activity, Network, Loader2, X, Download, Copy, Check, AlertTriangle, Settings, Paperclip, FileText } from 'lucide-react';
+import { Send, BrainCircuit, Activity, Network, Loader2, X, Download, Copy, Check, AlertTriangle, Paperclip, FileText, Diamond, Plus, Trash2, Star, Edit3 } from 'lucide-react';
 import { SemanticGraph, Node, Edge } from './components/SemanticGraph';
 import { DissonanceMeter } from './components/DissonanceMeter';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
@@ -58,7 +58,114 @@ export interface GemProfile {
   name: string;
   model: string;
   systemPrompt: string;
+  isBuiltIn?: boolean;
 }
+
+export const BUILT_IN_GEMS: GemProfile[] = [
+  {
+    id: 'gem-general',
+    name: 'General Chat',
+    model: 'gemini-2.5-flash',
+    systemPrompt: 'You are a helpful AI assistant.',
+    isBuiltIn: true
+  },
+  {
+    id: 'gem-coder',
+    name: 'System Coder',
+    model: 'gemini-2.5-pro',
+    systemPrompt: `You are a coding assistant specialized in macOS and Linux environments. Your output must be optimized for a "Pipe to Shell" workflow.
+
+### 1. Initialization & Communication Protocol
+* **Session Start:** On the very first response, **you must** print the Protocol Keys and the Copy instructions:
+  > \`🔑 Protocol Keys: [ ask-mode | code-mode ]\`
+  > \`💡 Protocol: Copy 🚀 scripts -> Run 'pbpaste | bash' (Mac) or 'cat | bash' (Linux)\`
+
+* **Default State:** You start in **\`ASK-MODE\`**.
+  * **\`ASK-MODE\`:** We are just discussing. Do **NOT** generate code or scripts. Focus on architecture, requirements, and logic.
+  * **\`CODE-MODE\`:** You are authorized to generate code and pipe-to-shell scripts.
+  * **Triggers:** The user will switch modes by typing \`ask-mode\` or \`code-mode\`.
+
+* **Visual Labels (Code Mode Only):** Explicitly label every code block.
+  * **Snippet Mode:** \`**📜 READ-ONLY SNIPPET:**\`
+  * **Action Mode:** \`**🚀 PIPE-TO-SHELL SCRIPT [ID: ###] (Run in <CONTEXT>):**\`
+    * *Note:* \`[ID: ###]\` must be a sequential number starting from 001 for this session.
+
+### 2. Mode Selection & Verbosity
+Determine the user's intent (only applicable in \`CODE-MODE\`):
+* **Snippet Mode:** For explanations, debugging, or single-function logic.
+  * *Action:* Provide standard Markdown code blocks + explanations.
+* **Action Mode:** For creating files, scaffolding, or setup.
+  * *Action:* Provide a **Pipe-Safe Setup Script**.
+  * *Constraint:* **NO EXPLANATIONS.** The label tells the user where to run it. The code does the rest.
+
+### 3. Compatibility Protocol: Bash 3.2 Limit
+MacOS uses Bash 3.2. Linux uses Bash 5.x. To ensure cross-platform compatibility:
+* **STRICTLY AVOID:** \`declare -A\`, \`mapfile\`, \`readarray\`, \`wait -n\`, \`read -i\`, \`\${var^^}\`.
+* **USE:** Standard POSIX patterns (e.g., \`while read\` loops).
+
+### 4. Output Protocol: Nested Fencing (Action Mode Only)
+* **Rule:** Inside \`cat << 'EOF'\`, NEVER use triple backticks (\`\`\`).
+* **Action:** Use \`@@@\` as the placeholder.
+* **Self-Healing:** The script must automatically run \`sed\` to restore \`@@@\` to \` \`\`\` \` after creation.
+
+### 5. Output Protocol: "Pipe-Safe" Setup Scripts (Action Mode Only)
+Provide a single, self-contained script beginning with a **Diagnostic Preamble**.
+
+* **Python Safety (Bootstrap Pattern):**
+  * **Standalone:** Prefer standard library only (\`os\`, \`sys\`, \`json\`) to ensure immediate execution.
+  * **Dependencies:** If external packages are needed (e.g., \`requests\`, \`numpy\`), DO NOT rely on system \`pip\`. The script must either:
+    1. Include a step to create/activate a \`.venv\` and install dependencies.
+    2. Or explicitly check for an active \`.venv\` and fail gracefully if missing.
+
+* **Required Template:**
+  \`\`\`bash
+  #!/bin/bash
+  # setup_env.sh # ID: 001
+  # Execution Context: <INTENDED_DIRECTORY>
+
+  # --- 1. Diagnostic Preamble ---
+  printf "\\n\\033[1;34m[START]\\033[0m Diagnostic Check (Script ID: 001):\\n"
+  printf "  OS:        %s\\n" "$(uname -sr)"
+  printf "  Shell:     %s\\n" "$BASH_VERSION"
+  printf "  Location: %s\\n" "$(pwd)"
+  printf "%s\\n" "----------------------------------------"
+
+  # --- 2. Environment/Bootstrap (Optional) ---
+  # Example: Check for venv if python dependencies are required
+  # if [ -z "$VIRTUAL_ENV" ]; then echo "Error: No venv detected."; exit 1; fi
+
+  # --- 3. File Creation (using @@@) ---
+  cat << 'EOF' > main.py
+  import sys
+  print("Standard Lib Only = Safe")
+  EOF
+
+  cat << 'EOF' > README.md
+  # Info
+  @@@bash
+  echo "Code block here"
+  @@@
+  EOF
+
+  # --- 4. Compatibility & Cleanup ---
+  printf "\\033[1;33m[PROCESS]\\033[0m Fixing Markdown fencing...\\n"
+  for file in README.md; do
+      if [ -f "$file" ]; then
+          sed 's/@@@/\`\`\`/g' "$file" > "\${file}.tmp" && mv "\${file}.tmp" "$file"
+          printf "  + Restored code blocks in: %s\\n" "$file"
+      fi
+  done
+
+  printf "\\033[1;32m[DONE]\\033[0m Setup complete.\\n\\n"
+  \`\`\`
+
+### 6. Interactive Command Protocol
+When asking the user to run commands directly (outside the setup script):
+* **No Trailing Comments:** MacOS zsh configurations often fail on trailing \`#\`. Put comments on the line above.
+* **Tools:** Prefer \`printf\` over \`echo\`. Use \`grep -E\` (Extended) instead of \`grep -P\` (Perl).`,
+    isBuiltIn: true
+  }
+];
 
 interface Message {
   role: 'user' | 'model';
@@ -81,25 +188,33 @@ export default function App() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTurnIndex, setSelectedTurnIndex] = useState<number | null>(null);
+  
   // Session State
   const [sessions, setSessions] = useState<any[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isHistorySidebarOpen, setIsHistorySidebarOpen] = useState(false);
 
   // Layout State
   const [isDissonancePanelOpen, setIsDissonancePanelOpen] = useState(false);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [isGemSidebarOpen, setIsGemSidebarOpen] = useState(false);
   
   const [availableModels, setAvailableModels] = useState<any[]>([]);
+  const chatModels = availableModels.filter(m => (m.name || '').includes('gemini-') || (m.displayName || '').includes('Gemini'));
   
   // Gem Configuration State
-  const [savedGems, setSavedGems] = useState<GemProfile[]>([]);
-  const [activeGemId, setActiveGemId] = useState<string>('default');
-  const [draftName, setDraftName] = useState<string>('My Custom Gem');
-  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.1-pro-preview');
-  const [systemPrompt, setSystemPrompt] = useState<string>('');
-  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [savedGems, setSavedGems] = useState<GemProfile[]>(BUILT_IN_GEMS);
+  const [defaultGemId, setDefaultGemId] = useState<string>('gem-general');
+  const [activeGemId, setActiveGemId] = useState<string>('gem-general');
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-2.5-flash');
+  
+  // Single system prompt state for the session (derived from gem at start, or if user edits)
+  const [sessionSystemPrompt, setSessionSystemPrompt] = useState<string>(BUILT_IN_GEMS[0].systemPrompt);
+
+  const [editingGem, setEditingGem] = useState<GemProfile | null>(null);
+  const [creatingGem, setCreatingGem] = useState(false);
+  const [draftGem, setDraftGem] = useState<{name: string, model: string, systemPrompt: string}>({name: '', model: 'gemini-2.5-flash', systemPrompt: ''});
 
   const [isViewMode, setIsViewMode] = useState(false);
   const [historyFilename, setHistoryFilename] = useState('');
@@ -123,7 +238,7 @@ export default function App() {
         sessionId: activeSessionId,
         data: {
           timestamp: new Date().toISOString(),
-          config: { model: selectedModel, systemPrompt: systemPrompt },
+          config: { model: selectedModel, systemPrompt: sessionSystemPrompt, gemId: activeGemId },
           messages: messages.map(msg => ({
             role: msg.role,
             content: msg.content,
@@ -132,7 +247,7 @@ export default function App() {
         }
       });
     }
-  }, [messages, selectedModel, systemPrompt, isViewMode]);
+  }, [messages, selectedModel, sessionSystemPrompt, activeGemId, isViewMode, activeSessionId]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -164,22 +279,26 @@ export default function App() {
       } else if (message.type === 'models_loaded') {
         const models = message.data || message.models || [];
         setAvailableModels(models);
-        
-        // If the currently selected model is not in the list, fallback 
-        setSelectedModel(prev => {
-           if (models.length > 0 && !models.find((m: any) => m.name === prev || m.name === `models/${prev}`)) {
-              return models[0].name.replace('models/', '');
-           }
-           return prev;
-        });
       } else if (message.type === 'sessions_loaded') {
         const list = message.sessions || [];
         setSessions(list);
       } else if (message.type === 'gems_loaded') {
-        const list = message.gems || [];
-        setSavedGems(list);
-        if (list.length > 0 && activeGemId === 'default') {
-          handleSelectGem(list[0]);
+        const list = message.data || message.gems || [];
+        const userGems = list.filter((g: any) => !g.isBuiltIn && g.id !== 'gem-general' && g.id !== 'gem-coder');
+        const finalGems = [...BUILT_IN_GEMS, ...userGems];
+        setSavedGems(finalGems);
+        if (message.defaultGemId) {
+          setDefaultGemId(message.defaultGemId);
+        }
+        
+        // Ensure starting state
+        if (activeGemId === 'gem-general' && message.defaultGemId) {
+           const defGem = finalGems.find(g => g.id === message.defaultGemId);
+           if (defGem) {
+             setActiveGemId(defGem.id);
+             setSelectedModel(defGem.model);
+             setSessionSystemPrompt(defGem.systemPrompt);
+           }
         }
       } else if (message.type === 'session_saved') {
         if (!activeSessionId) setActiveSessionId(message.sessionId);
@@ -199,8 +318,8 @@ export default function App() {
         // Restore active configuration from history if present
         if (message.data.config) {
           setSelectedModel(message.data.config.model);
-          setSystemPrompt(message.data.config.systemPrompt);
-          setActiveGemId('custom'); // Or find matching ID
+          setSessionSystemPrompt(message.data.config.systemPrompt);
+          if (message.data.config.gemId) setActiveGemId(message.data.config.gemId);
         }
         setIsLoading(false);
       } else if (message.type === 'file_attached') {
@@ -212,7 +331,7 @@ export default function App() {
     window.addEventListener('message', handleMessage);
     vscode.postMessage({ type: 'webview_ready' });
     return () => window.removeEventListener('message', handleMessage);
-  }, [activeSessionId]); // Added activeSessionId to dependencies for session_saved logic
+  }, [activeSessionId, activeGemId]); 
 
   const modelMessages = messages.filter(m => m.role === 'model');
   const latestTurnIndex = modelMessages.length > 0 ? modelMessages.length - 1 : -1;
@@ -225,51 +344,71 @@ export default function App() {
     score: msg.internalState?.dissonanceScore ?? 0
   }));
 
-  const handleSelectGem = (gem: GemProfile) => {
-    setActiveGemId(gem.id);
-    setDraftName(gem.name);
-    setSelectedModel(gem.model);
-    setSystemPrompt(gem.systemPrompt);
+  const handleSelectGem = (gemId: string) => {
+    setActiveGemId(gemId);
+    const gem = savedGems.find(g => g.id === gemId);
+    if (gem) {
+      setSelectedModel(gem.model);
+      setSessionSystemPrompt(gem.systemPrompt);
+    }
+    setIsGemSidebarOpen(false);
   };
 
-  const handleSaveGem = () => {
-    const updatedGems = [...savedGems];
-    const existingIdx = updatedGems.findIndex(g => g.id === activeGemId);
+  const handleSaveGem = (gemProfile: GemProfile) => {
+    const isNew = !savedGems.find(g => g.id === gemProfile.id);
+    let updatedGems = [...savedGems];
     
-    if (existingIdx >= 0) {
-      updatedGems[existingIdx] = { ...updatedGems[existingIdx], name: draftName || 'Unnamed Gem', model: selectedModel, systemPrompt };
+    if (isNew) {
+      updatedGems.push(gemProfile);
     } else {
-      const newGem: GemProfile = {
-        id: 'gem-' + Date.now(),
-        name: draftName || 'My Custom Gem',
-        model: selectedModel,
-        systemPrompt
-      };
-      updatedGems.push(newGem);
-      setActiveGemId(newGem.id);
+      updatedGems = updatedGems.map(g => g.id === gemProfile.id ? gemProfile : g);
     }
     
     setSavedGems(updatedGems);
-    vscode.postMessage({ type: 'save_gems', data: updatedGems });
+    const customGems = updatedGems.filter(g => !g.isBuiltIn);
+    vscode.postMessage({ type: 'save_gems_config', data: customGems, defaultGemId });
+    
+    if (activeGemId === gemProfile.id || isNew) {
+        handleSelectGem(gemProfile.id);
+    }
+    setEditingGem(null);
+    setCreatingGem(false);
+    setIsGemSidebarOpen(false); // Close sidebar on save
   };
 
-  const handleDeleteGem = () => {
-    const updatedGems = savedGems.filter(g => g.id !== activeGemId);
+  const handleDeleteGem = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updatedGems = savedGems.filter(g => g.id !== id);
     setSavedGems(updatedGems);
-    vscode.postMessage({ type: 'save_gems', data: updatedGems });
     
-    if (updatedGems.length > 0) {
-      handleSelectGem(updatedGems[0]);
-    } else {
-      setActiveGemId('default');
-      setDraftName('New Gem');
-      setSystemPrompt('');
+    const newDefaultId = defaultGemId === id ? 'gem-general' : defaultGemId;
+    if (defaultGemId === id) setDefaultGemId(newDefaultId);
+    
+    const customGems = updatedGems.filter(g => !g.isBuiltIn);
+    vscode.postMessage({ type: 'save_gems_config', data: customGems, defaultGemId: newDefaultId });
+    
+    if (activeGemId === id) {
+      handleSelectGem(newDefaultId);
     }
+  };
+  
+  const handleSetDefaultGem = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDefaultGemId(id);
+    const customGems = savedGems.filter(g => !g.isBuiltIn);
+    vscode.postMessage({ type: 'save_gems_config', data: customGems, defaultGemId: id });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
+
+    if (!selectedModel || !chatModels.find(m => m.name.replace('models/', '') === selectedModel.replace('models/', ''))) {
+      const errorMsg = 'Invalid model selected. Please choose a compliant `gemini-` chat model before proceeding.';
+      setMessages([...messages, { role: 'user', content: input }, { role: 'model', content: errorMsg, isError: true }]);
+      setIsLoading(false);
+      return;
+    }
 
     const userMessage = input.trim();
     setInput('');
@@ -282,7 +421,7 @@ export default function App() {
     vscode.postMessage({
       type: 'prompt',
       model: selectedModel,
-      systemPrompt: systemPrompt.trim(),
+      systemPrompt: sessionSystemPrompt.trim(),
       history: newMessages,
       responseSchema: responseSchema,
       attachedFiles: attachedFiles.map(f => ({ localPath: f.localPath, name: f.name }))
@@ -297,7 +436,8 @@ export default function App() {
       timestamp: new Date().toISOString(),
       config: {
         model: selectedModel,
-        systemPrompt: systemPrompt
+        systemPrompt: sessionSystemPrompt,
+        gemId: activeGemId
       },
       messages: messages.map(msg => ({
         role: msg.role,
@@ -311,7 +451,7 @@ export default function App() {
 
   const handleLoadSession = (sessionId: string) => {
     vscode.postMessage({ type: 'load_specific_session', sessionId });
-    setIsSidebarOpen(false);
+    setIsHistorySidebarOpen(false);
   };
 
   const handleDeleteSession = (sessionId: string, e: React.MouseEvent) => {
@@ -327,17 +467,18 @@ export default function App() {
     setActiveSessionId(null);
     setMessages([]);
     setIsViewMode(false);
-    setIsSidebarOpen(false);
+    setIsHistorySidebarOpen(false);
+    handleSelectGem(defaultGemId);
   };
 
   return (
     <div className="flex flex-col h-screen bg-[#111116] text-zinc-100 font-sans overflow-hidden">
       
       {/* Session Sidebar Backdrop */}
-      {isSidebarOpen && (
+      {isHistorySidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
-          onClick={() => setIsSidebarOpen(false)}
+          onClick={() => setIsHistorySidebarOpen(false)}
         />
       )}
 
@@ -345,13 +486,13 @@ export default function App() {
       <div 
         className={cn(
           "fixed top-0 left-0 bottom-0 w-[280px] bg-zinc-900 border-r border-zinc-800/50 shadow-2xl z-50 transform transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] flex flex-col",
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          isHistorySidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
           <h2 className="text-sm font-semibold tracking-wide text-zinc-200">Session History</h2>
           <button 
-            onClick={() => setIsSidebarOpen(false)}
+            onClick={() => setIsHistorySidebarOpen(false)}
             className="text-zinc-500 hover:text-white transition-colors p-1"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -403,7 +544,7 @@ export default function App() {
       <header className="flex-none px-6 py-4 border-b border-zinc-800/50 bg-zinc-900/30 flex items-center justify-between backdrop-blur-md sticky top-0 z-20">
         <div className="flex items-center gap-3">
           <button 
-             onClick={() => setIsSidebarOpen(true)}
+             onClick={() => setIsHistorySidebarOpen(true)}
              className="p-1.5 text-zinc-400 hover:text-indigo-400 bg-zinc-800/30 hover:bg-zinc-800 rounded-md transition-colors"
              title="Session History"
           >
@@ -421,51 +562,26 @@ export default function App() {
         <div className="flex items-center gap-2">
           {!isViewMode && (
             <>
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                className="text-xs font-medium text-zinc-400 bg-zinc-800/30 hover:bg-zinc-800 border border-zinc-800 hover:border-indigo-500/30 rounded px-2 py-1.5 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-all max-w-[180px] truncate"
-                title="Switch model"
-              >
-                {availableModels.length === 0 && (
-                  <>
-                    <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
-                    <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                    <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                  </>
-                )}
-                {availableModels.length > 0 && selectedModel === '' && <option value="" disabled>Select a Model...</option>}
-                {availableModels.map((m: any) => (
-                  <option key={m.name} value={m.name.replace('models/', '')}>{m.displayName || m.name.replace('models/', '')}</option>
-                ))}
-              </select>
               <button
-                onClick={() => setIsConfigOpen(true)}
-                className="p-1.5 text-zinc-400 hover:text-indigo-400 bg-zinc-800/30 hover:bg-zinc-800 rounded border border-zinc-800 hover:border-indigo-500/30 transition-all group"
-                title="System prompt & gem configuration"
+                onClick={handleDownloadHistory}
+                disabled={messages.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-400 disabled:opacity-30 disabled:cursor-not-allowed hover:text-white bg-zinc-800/30 hover:bg-zinc-800 rounded border border-zinc-800 transition-colors"
+                title="Download Snapshot JSON"
               >
-                 <svg className="w-3.5 h-3.5 group-hover:rotate-45 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <Download className="w-3.5 h-3.5" />
+                Backup
               </button>
             </>
           )}
-          <button
-            onClick={handleDownloadHistory}
-            disabled={messages.length === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-400 disabled:opacity-30 disabled:cursor-not-allowed hover:text-white bg-zinc-800/30 hover:bg-zinc-800 rounded border border-zinc-800 transition-colors"
-            title="Download Snapshot JSON"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-            Backup
-          </button>
         </div>
       </header>
 
       <div className="flex h-full w-full bg-[#0a0a0a] text-zinc-100 font-sans overflow-hidden relative">
       {/* Mobile Backdrop */}
-      {(isDissonancePanelOpen || isRightSidebarOpen || isConfigOpen) && (
+      {isDissonancePanelOpen && (
         <div 
           className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm"
-          onClick={() => { setIsDissonancePanelOpen(false); setIsRightSidebarOpen(false); setIsConfigOpen(false); }}
+          onClick={() => { setIsDissonancePanelOpen(false); }}
         />
       )}
 
@@ -519,25 +635,6 @@ export default function App() {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            {!isViewMode && (
-              <>
-                <button 
-                  onClick={() => setIsConfigOpen(true)}
-                  className="p-2 text-zinc-400 hover:text-zinc-100 transition-colors"
-                  title="Gem Configuration"
-                >
-                  <Settings className="w-5 h-5" />
-                </button>
-                <button 
-                  onClick={handleDownloadHistory}
-                  disabled={messages.length === 0}
-                  className="p-2 text-zinc-400 hover:text-zinc-100 disabled:opacity-50 disabled:hover:text-zinc-400 transition-colors"
-                  title="Download Chat History"
-                >
-                  <Download className="w-5 h-5" />
-                </button>
-              </>
-            )}
             <button className="lg:hidden p-2 -mr-2 text-zinc-400 hover:text-zinc-100" onClick={() => setIsRightSidebarOpen(true)}>
               <Network className="w-5 h-5" />
             </button>
@@ -637,6 +734,40 @@ export default function App() {
 
         {!isViewMode && (
           <div className="p-4 bg-zinc-900/50 border-t border-zinc-800/50 flex flex-col gap-2 relative z-20">
+            {/* Prompt Area Controls */}
+            <div className="flex items-center gap-2 px-1 pb-1">
+              <button 
+                 onClick={() => setIsGemSidebarOpen(true)} 
+                 className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-zinc-800/40 hover:bg-zinc-800 text-indigo-300 border border-indigo-500/20 rounded-lg transition-colors shadow-sm"
+                 title="Manage Gems"
+              >
+                <Diamond className="w-3.5 h-3.5" />
+                {savedGems.find(g => g.id === activeGemId)?.name || 'Select Gem'}
+              </button>
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className={cn(
+                  "text-xs font-medium bg-transparent hover:bg-zinc-800/40 border border-transparent hover:border-zinc-700/50 rounded-lg px-2 py-1.5 cursor-pointer focus:outline-none transition-all max-w-[200px] truncate shadow-sm",
+                  (!selectedModel || !chatModels.find(m => m.name.replace('models/', '') === selectedModel.replace('models/', ''))) ? 'text-red-400/90' : 'text-zinc-400'
+                )}
+                title="Override model for this session"
+              >
+                {chatModels.length === 0 && (
+                  <option value={selectedModel}>{selectedModel}</option>
+                )}
+                {chatModels.length > 0 && (!selectedModel || !chatModels.find(m => m.name.replace('models/', '') === selectedModel.replace('models/', ''))) && (
+                   <option value={selectedModel || ''} className="text-red-500" disabled>Select valid chat model...</option>
+                )}
+                {chatModels.map((m: any) => {
+                  const val = m.name.replace('models/', '');
+                  return (
+                    <option key={val} value={val}>{m.displayName || val}</option>
+                  );
+                })}
+              </select>
+            </div>
+            
             {/* Attachment Preview Strip */}
             {attachedFiles.length > 0 && (
               <div className="flex flex-wrap gap-2 px-1">
@@ -659,10 +790,10 @@ export default function App() {
               </div>
             )}
             <form onSubmit={handleSubmit} className="relative flex items-center">
-              {selectedModel === '' && (
-                <div className="absolute -top-10 left-0 w-full text-center pointer-events-none">
+              {(!selectedModel || (chatModels.length > 0 && !chatModels.find(m => m.name.replace('models/', '') === selectedModel.replace('models/', '')))) && (
+                <div className="absolute -top-10 left-0 w-full text-center pointer-events-none z-50">
                   <span className="bg-amber-500/10 text-amber-400 text-xs px-3 py-1.5 rounded-full border border-amber-500/20 shadow-lg pointer-events-auto">
-                    Please select an available model from the menu above to continue.
+                    Please select a valid 'gemini-' model to continue.
                   </span>
                 </div>
               )}
@@ -680,12 +811,12 @@ export default function App() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Send a message..."
-                disabled={isLoading || selectedModel === ''}
+                disabled={isLoading || !selectedModel || (chatModels.length > 0 && !chatModels.find(m => m.name.replace('models/', '') === selectedModel.replace('models/', '')))}
                 className="w-full bg-zinc-950 border border-zinc-700/50 rounded-xl pl-4 pr-12 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all disabled:opacity-50"
               />
               <button
                 type="submit"
-                disabled={!input.trim() || isLoading || selectedModel === ''}
+                disabled={!input.trim() || isLoading || !selectedModel || (chatModels.length > 0 && !chatModels.find(m => m.name.replace('models/', '') === selectedModel.replace('models/', '')))}
                 className="absolute right-2 p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:hover:bg-indigo-600"
               >
                 <Send className="w-4 h-4" />
@@ -731,123 +862,165 @@ export default function App() {
         </div>
       </div>
 
-      {/* Gem Configuration Modal */}
-      {isConfigOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsConfigOpen(false)} />
-          <div className="relative bg-[#111111] border border-zinc-800/80 rounded-2xl w-full max-w-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-800/50 bg-zinc-900/30">
-              <div className="flex items-center gap-3">
-                <Settings className="w-5 h-5 text-indigo-400" />
-                <h2 className="font-semibold text-zinc-100">Gem Configuration</h2>
-              </div>
-              <button onClick={() => setIsConfigOpen(false)} className="text-zinc-400 hover:text-zinc-100 transition-colors p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-6 overflow-y-auto max-h-[70vh] space-y-6">
-              
-              <div className="space-y-2.5">
-                 <div className="flex justify-between items-center mb-1">
-                   <label className="text-sm font-medium text-zinc-300 ml-1">Active Gem</label>
-                 </div>
-                 <select 
-                   value={activeGemId} 
-                   onChange={(e) => {
-                     if (e.target.value === 'new') {
-                       setActiveGemId('new');
-                       setDraftName('New Gem Format');
-                       setSystemPrompt('');
-                     } else {
-                       const gem = savedGems.find(g => g.id === e.target.value);
-                       if (gem) handleSelectGem(gem);
-                     }
-                   }}
-                   className="w-full bg-zinc-900/50 text-sm text-zinc-200 border border-indigo-500/30 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 cursor-pointer"
-                 >
-                   {savedGems.map(g => (
-                     <option key={g.id} value={g.id}>{g.name}</option>
-                   ))}
-                   <option value="new">+ Create New Gem...</option>
-                 </select>
-               </div>
+      {/* Gem Sidebar Options Panel */}
+      {isGemSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+          onClick={() => setIsGemSidebarOpen(false)}
+        />
+      )}
+      <div 
+        className={cn(
+          "fixed top-0 right-0 bottom-0 w-[340px] bg-zinc-900 border-l border-zinc-800/50 shadow-2xl z-50 transform transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] flex flex-col",
+          isGemSidebarOpen ? "translate-x-0" : "translate-x-full"
+        )}
+      >
+        <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Diamond className="w-4 h-4 text-indigo-400" />
+            <h2 className="text-sm font-semibold tracking-wide text-zinc-200">Gems</h2>
+          </div>
+          <button 
+            onClick={() => { setIsGemSidebarOpen(false); setEditingGem(null); setCreatingGem(false); }}
+            className="text-zinc-500 hover:text-white transition-colors p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
 
-               <div className="space-y-4 pt-4 border-t border-zinc-800/50">
-                <div className="space-y-2.5">
-                  <label className="text-xs font-medium text-zinc-400 ml-1">Gem Name</label>
+        {editingGem || creatingGem ? (
+           <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 animate-in slide-in-from-right-2 duration-200">
+              <div className="flex items-center gap-2 text-sm font-medium text-zinc-300 mb-2">
+                <button onClick={() => { setEditingGem(null); setCreatingGem(false); }} className="text-zinc-500 hover:text-zinc-300"><X className="w-4 h-4" /></button>
+                {creatingGem ? 'New Custom Gem' : 'Edit Gem'}
+              </div>
+              <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-zinc-400 ml-1">Name</label>
                   <input
                     type="text"
-                    value={draftName}
-                    onChange={(e) => setDraftName(e.target.value)}
-                    className="w-full bg-zinc-900/50 text-sm text-zinc-200 border border-zinc-700/50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                    value={editingGem ? editingGem.name : draftGem.name || ''}
+                    onChange={(e) => {
+                       if (editingGem) setEditingGem({...editingGem, name: e.target.value});
+                       else setDraftGem({...draftGem, name: e.target.value});
+                    }}
+                    placeholder="E.g. Code Reviewer"
+                    className="w-full bg-zinc-950/50 text-sm text-zinc-200 border border-zinc-700/50 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
                   />
-                </div>
-
-                <div className="space-y-2.5">
-                  <label className="text-xs font-medium text-zinc-400 ml-1">Base Model</label>
-                  <select 
-                    value={selectedModel} 
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    disabled={false}
-                    className="w-full bg-zinc-900/50 text-sm text-zinc-200 border border-zinc-700/50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 cursor-pointer"
+              </div>
+              <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-zinc-400 ml-1">Base Model</label>
+                  <select
+                    value={editingGem ? editingGem.model : draftGem.model || 'gemini-2.5-flash'}
+                    onChange={(e) => {
+                       if (editingGem) setEditingGem({...editingGem, model: e.target.value});
+                       else setDraftGem({...draftGem, model: e.target.value});
+                    }}
+                    className="w-full bg-zinc-950/50 text-sm text-zinc-200 border border-zinc-700/50 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
                   >
-                    {availableModels.length === 0 && (
-                      <>
-                        <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
-                        <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                        <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                      </>
-                    )}
-                    {availableModels.length > 0 && selectedModel === '' && <option value="" disabled>Select a Model...</option>}
-                    {availableModels.map((m: any) => (
-                      <option key={m.name} value={m.name.replace('models/', '')}>{m.displayName || m.name.replace('models/', '')}</option>
-                    ))}
+                    {chatModels.map((m: any) => {
+                      const val = m.name.replace('models/', '');
+                      return <option key={val} value={val}>{m.displayName || val}</option>;
+                    })}
                   </select>
-                </div>
-
-                <div className="space-y-2.5">
-                  <label className="text-xs font-medium text-zinc-400 ml-1">System Prompt / Persona</label>
-                  <div className="relative">
-                    <textarea
-                      value={systemPrompt}
-                      onChange={(e) => setSystemPrompt(e.target.value)}
-                      placeholder="Define the model's persona, rules, and behavior... (e.g. You are a helpful expert software engineer...)"
-                      className="w-full bg-zinc-900/50 text-sm text-zinc-200 border border-zinc-700/50 rounded-xl px-4 py-3 min-h-[160px] max-h-[400px] resize-y focus:outline-none focus:ring-2 focus:ring-indigo-500/50 placeholder:text-zinc-600 transition-all font-mono"
-                    />
-                  </div>
-                </div>
               </div>
-            </div>
-
-            <div className="p-5 border-t border-zinc-800/50 bg-zinc-900/30 flex justify-between gap-3">
-              {activeGemId !== 'new' && savedGems.find(g => g.id === activeGemId) ? (
-                 <button 
-                  onClick={handleDeleteGem}
-                  className="px-4 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:bg-red-950/50 hover:text-red-300 transition-colors"
+              <div className="space-y-1.5 flex-1 flex flex-col">
+                  <label className="text-xs font-semibold text-zinc-400 ml-1">System Prompt</label>
+                  <textarea
+                    value={editingGem ? editingGem.systemPrompt : draftGem.systemPrompt || ''}
+                    onChange={(e) => {
+                       if (editingGem) setEditingGem({...editingGem, systemPrompt: e.target.value});
+                       else setDraftGem({...draftGem, systemPrompt: e.target.value});
+                    }}
+                    placeholder="You are an expert..."
+                    className="w-full bg-zinc-950/50 text-xs text-zinc-300 border border-zinc-700/50 rounded-lg px-3 py-2.5 flex-1 focus:outline-none focus:ring-1 focus:ring-indigo-500/50 font-mono resize-none min-h-[200px]"
+                  />
+              </div>
+              <div className="pt-2">
+                 <button
+                    onClick={() => {
+                        if (editingGem) handleSaveGem(editingGem);
+                        else {
+                           const newId = 'gem-' + Date.now();
+                           handleSaveGem({
+                               id: newId,
+                               name: draftGem.name || 'Unnamed Gem',
+                               model: draftGem.model || 'gemini-2.5-flash',
+                               systemPrompt: draftGem.systemPrompt || ''
+                           });
+                        }
+                    }}
+                    disabled={editingGem ? !editingGem.name : !draftGem.name}
+                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
                  >
-                  Delete
+                    Save Gem
                  </button>
-              ) : <div></div>}
-              
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setIsConfigOpen(false)}
-                  className="px-5 py-2.5 rounded-lg text-sm font-medium text-zinc-300 hover:text-white transition-colors"
+              </div>
+           </div>
+        ) : (
+           <>
+              <div className="p-3">
+                <button
+                  onClick={() => {
+                     setCreatingGem(true);
+                     setDraftGem({ name: '', model: 'gemini-2.5-flash', systemPrompt: '' });
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700 border border-zinc-700 rounded-lg text-sm font-medium transition-all"
                 >
-                  Cancel
-                </button>
-                <button 
-                  onClick={() => { handleSaveGem(); setIsConfigOpen(false); }}
-                  className="px-5 py-2.5 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
-                >
-                  Save & Apply
+                  <Plus className="w-4 h-4" />
+                  Create Custom Gem
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-2 mt-1">
+                {savedGems.map(g => (
+                  <div
+                    key={g.id}
+                    onClick={() => handleSelectGem(g.id)}
+                    className={cn(
+                      "group relative px-3 py-3 rounded-lg cursor-pointer transition-colors border flex flex-col gap-1",
+                      activeGemId === g.id
+                        ? "bg-indigo-900/20 border-indigo-500/40 shadow-sm"
+                        : "bg-zinc-800/20 border-zinc-800/80 hover:bg-zinc-800/50"
+                    )}
+                  >
+                     <div className="flex items-start justify-between">
+                         <div className="flex items-center gap-2">
+                             <div className="text-sm font-semibold text-zinc-200">{g.name}</div>
+                             {g.isBuiltIn && <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-zinc-800 text-zinc-400">Built-in</span>}
+                         </div>
+                         <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                             <button
+                               onClick={(e) => handleSetDefaultGem(g.id, e)}
+                               className={cn("p-1.5 rounded-md transition-colors", defaultGemId === g.id ? "text-amber-400" : "text-zinc-500 hover:text-amber-400 hover:bg-amber-400/10")}
+                               title="Set as Default"
+                             >
+                               <Star className="w-3.5 h-3.5" fill={defaultGemId === g.id ? "currentColor" : "none"} />
+                             </button>
+                             {!g.isBuiltIn && (
+                               <>
+                                 <button
+                                   onClick={(e) => { e.stopPropagation(); setEditingGem(g); }}
+                                   className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded-md transition-colors"
+                                 >
+                                   <Edit3 className="w-3.5 h-3.5" />
+                                 </button>
+                                 <button
+                                   onClick={(e) => handleDeleteGem(g.id, e)}
+                                   className="p-1.5 text-red-500/70 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
+                                 >
+                                   <Trash2 className="w-3.5 h-3.5" />
+                                 </button>
+                               </>
+                             )}
+                         </div>
+                     </div>
+                     <div className="text-[11px] text-zinc-500 font-medium">{g.model}</div>
+                     <div className="text-xs text-zinc-400 line-clamp-2 mt-1">{g.systemPrompt || <span className="italic opacity-50">No system prompt</span>}</div>
+                  </div>
+                ))}
+              </div>
+           </>
+        )}
+      </div>
 
     </div>
   );
