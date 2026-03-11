@@ -74,11 +74,31 @@ const generateHtml = (title, mainContent, isSubpage = false) => `<!DOCTYPE html>
         </footer>
     </div>
     ${isSubpage ? `
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <script>
+        // Initialize Mermaid
+        mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+
         // Parse markdown content on the client for simplicity
         document.querySelectorAll('.markdown-body').forEach(el => {
-            el.innerHTML = marked.parse(el.textContent);
+            // marked.js converts \`\`\`mermaid into <pre><code class="language-mermaid">
+            let html = marked.parse(el.textContent);
+            el.innerHTML = html;
+            
+            // Post-process to fix Mermaid classes for auto-rendering
+            el.querySelectorAll('pre code.language-mermaid').forEach(codeBlock => {
+                const pre = codeBlock.parentElement;
+                const newDiv = document.createElement('div');
+                newDiv.className = 'mermaid';
+                newDiv.textContent = codeBlock.textContent;
+                pre.replaceWith(newDiv);
+            });
         });
+        
+        // Render Mermaid on the injected blocks
+        setTimeout(() => {
+            mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+        }, 100);
     </script>
     ` : ''}
 </body>
@@ -162,7 +182,40 @@ function processSessions() {
                             <div class="text-xs font-medium text-zinc-500 mb-1.5 px-2">
                                 ${isUser ? 'User' : 'Cognitive Resonance'}
                             </div>
-                            <div class="max-w-[85%] rounded-2xl p-4 prose ${isUser ? 'bg-indigo-600/20 border border-indigo-500/30 text-indigo-100' : 'bg-zinc-900 border border-zinc-800 text-zinc-300'}">
+                    `;
+
+                    // If it's the model, check for internal state to render Semantic Graph and Dissonance
+                    if (!isUser && msg.internalState) {
+                        const score = msg.internalState.dissonanceScore || 0;
+                        const label = msg.internalState.dissonanceLabel || "Resonant";
+                        const nodes = msg.internalState.semanticNodes || [];
+                        
+                        // Dissonance visually
+                        let colorClass = "bg-green-500/20 text-green-400 border-green-500/30";
+                        if (score >= 0.3) colorClass = "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+                        if (score >= 0.7) colorClass = "bg-red-500/20 text-red-400 border-red-500/30";
+
+                        chatHtml += `
+                            <div class="w-full flex gap-4 text-xs font-mono mb-2 px-2 items-center">
+                                <div class="px-2 py-1 rounded border ${colorClass} flex items-center gap-2 shadow-sm">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                                    <span>${(score * 100).toFixed(0)}% Dissonance (${label})</span>
+                                </div>
+                        `;
+
+                        if (nodes.length > 0) {
+                            chatHtml += `
+                                <div class="flex gap-1.5 flex-wrap flex-1 opacity-70">
+                                    ${nodes.map(n => `<span class="px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded-full border border-zinc-700/50 flex items-center gap-1">${n.type === 'concept' ? '💡' : n.type === 'rule' ? '📌' : '❓'} ${n.label || n.id}</span>`).join('')}
+                                </div>
+                            `;
+                        }
+
+                        chatHtml += `</div>`; // Close internal state div
+                    }
+
+                    chatHtml += `
+                            <div class="max-w-[85%] rounded-2xl p-4 prose ${isUser ? 'bg-indigo-600/20 border border-indigo-500/30 text-indigo-100' : 'bg-zinc-900 border border-zinc-800 text-zinc-300 shadow-sm'}">
                                 <div class="markdown-body whitespace-pre-wrap">${msg.content.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
                             </div>
                         </div>
