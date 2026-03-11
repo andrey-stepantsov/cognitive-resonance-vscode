@@ -108,37 +108,37 @@ function processSessions() {
             
             // Extract top concepts for tags
             const topMarkers = getTopMarkers(data.messages);
-            const tagsHtml = topMarkers.map(t => `<span class="px-2 py-0.5 bg-indigo-500/10 text-indigo-300 rounded border border-indigo-500/20 text-[10px] font-medium">\${t}</span>`).join('');
+            const tagsHtml = topMarkers.map(t => `<span class="px-2 py-0.5 bg-indigo-500/10 text-indigo-300 rounded border border-indigo-500/20 text-[10px] font-medium">${t}</span>`).join('');
 
             // We generate individual specific HTML pages for each chat if we want, 
             // but for v1 let's just create a robust index card view
             cardsHtml += `
                 <div class="group flex flex-col p-6 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-indigo-500/50 hover:bg-zinc-800/80 transition-all cursor-pointer shadow-lg hover:shadow-indigo-900/20">
                     <div class="flex justify-between items-start mb-3 gap-4">
-                        <h2 class="text-lg font-semibold text-zinc-100 line-clamp-2 leading-snug group-hover:text-indigo-400 transition-colors">\${title}</h2>
+                        <h2 class="text-lg font-semibold text-zinc-100 line-clamp-2 leading-snug group-hover:text-indigo-400 transition-colors">${title}</h2>
                     </div>
                     
                     <div class="flex items-center gap-2 mb-4">
-                        <span class="px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded text-[10px] font-mono border border-zinc-700/50">\${modelName}</span>
-                         <span class="text-[10px] text-zinc-500 font-mono">\${msgCount} turns</span>
+                        <span class="px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded text-[10px] font-mono border border-zinc-700/50">${modelName}</span>
+                         <span class="text-[10px] text-zinc-500 font-mono">${msgCount} turns</span>
                     </div>
                     
-                    <p class="text-sm text-zinc-400 leading-relaxed mb-6 flex-1 line-clamp-4 italic">"\${preview}"</p>
+                    <p class="text-sm text-zinc-400 leading-relaxed mb-6 flex-1 line-clamp-4 italic">"${preview}"</p>
                     
                     <div class="flex flex-wrap gap-1.5 mt-auto pt-4 border-t border-zinc-800/80">
-                        \${tagsHtml}
+                        ${tagsHtml}
                     </div>
                 </div>
             `;
         } catch (e) {
-            console.error(`Failed to parse \${file}:`, e);
+            console.error(`Failed to parse ${file}:`, e);
         }
     }
     
     const finalHtml = generateHtml(cardsHtml);
     const outputPath = path.join(outputDir, 'index.html');
     fs.writeFileSync(outputPath, finalHtml);
-    console.log(`Gallery successfully generated at \${outputPath}`);
+    console.log(`Gallery successfully generated at ${outputPath}`);
 }
 
 processSessions();
