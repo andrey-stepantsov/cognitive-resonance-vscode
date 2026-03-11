@@ -6,6 +6,9 @@ on:
     paths:
       - 'data/gallery-sessions/**'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   rebuild-registry:
     runs-on: ubuntu-latest
