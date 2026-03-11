@@ -67,6 +67,18 @@ All features are accessed via the VS Code Command Palette (`Cmd+Shift+P` on Mac,
 3. **`Cognitive Resonance: View History`**: Select an exported `.json` history file strictly for a read-only review of the semantic graph and dialogue.
 5. **`Cognitive Resonance: Export Diagnostics`**: Copies a formatted diagnostics report (all logged errors) to your clipboard for easy sharing.
 
+## Public Chat Gallery (Submit Your Chats!)
+
+We maintain a public, statically generated gallery of fascinating Cognitive Resonance conversations right in this repository. 
+
+**How to submit your own chat to the gallery:**
+1. Use the extension to download a backup of your session (`.json` format).
+2. Open a **Pull Request** to this repository.
+3. Place your `.json` file inside the `data/gallery-sessions/` directory.
+4. Once merged, a GitHub Action automatically regenerates the `gallery/index.html` file using our static builder (`tools/build_gallery.js`) and deploys it to GitHub Pages.
+
+_Note: Please ensure your exported JSON does not contain sensitive API keys or personal file paths before submitting a PR._
+
 ## Setting Up for Local Development
 
 If you wish to clone and build this extension yourself:
