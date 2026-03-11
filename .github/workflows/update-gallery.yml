@@ -1,0 +1,31 @@
+name: Update Gallery Registry
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/gallery-sessions/**'
+
+jobs:
+  rebuild-registry:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Rebuild gallery registry
+        run: node tools/build_gallery.js
+
+      - name: Commit updated registry
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/gallery/index.json
+          git diff --cached --quiet || git commit -m "chore: auto-update gallery registry [skip ci]"
+          git push
