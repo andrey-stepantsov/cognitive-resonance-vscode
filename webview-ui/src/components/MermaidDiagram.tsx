@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
 import { Copy, Check, Maximize2, Minimize2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 interface MermaidDiagramProps {
   chart: string;
@@ -109,7 +110,7 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart }) => {
 
   return (
     <>
-      {isFullscreen && (
+      {isFullscreen && document.body && createPortal(
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex flex-col p-4 sm:p-8 animate-in fade-in duration-200">
           <div className="flex justify-between items-center bg-zinc-900 border border-zinc-700/50 rounded-t-lg px-4 py-3">
             <span className="text-zinc-300 font-medium">Mermaid Diagram (Fullscreen)</span>
@@ -134,7 +135,8 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart }) => {
             className="flex-1 overflow-auto bg-zinc-950 border border-t-0 border-zinc-700/50 rounded-b-lg flex items-center justify-center p-8"
             dangerouslySetInnerHTML={{ __html: svgContent }} 
           />
-        </div>
+        </div>,
+        document.body
       )}
       
       <div className="relative group my-6 w-full max-w-full min-w-0 overflow-hidden rounded-lg border border-zinc-700/50 bg-zinc-900/10">
