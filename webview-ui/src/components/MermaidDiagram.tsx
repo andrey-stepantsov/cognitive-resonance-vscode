@@ -27,23 +27,34 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart }) => {
     const renderDiagram = async () => {
       if (!chart || chart.trim() === '') return;
       
+      // Sanitize common AI-generated Mermaid syntax errors
       const sanitizeMermaid = (chartCode: string): string => {
-        // Find Mermaid flowchart node definitions and ensure their inner labels are quoted 
-        // if they contain dangerous characters that ruin Mermaid parsing (e.g. backticks, parentheses)
-        const nodeRegex = /([A-Za-z0-9_-]+)(\[|\(|\{|\(\(|>|\])(.*?)(]|\)|\}|\)\)|])(?=[\s\n-]|$)/g;
-        return chartCode.replace(nodeRegex, (match, id, openBracket, innerText, closeBracket) => {
-          let cleanText = innerText.trim();
-          const hasDangerousChars = /[`()"]/.test(cleanText);
-          const isAlreadyQuoted = cleanText.startsWith('"') && cleanText.endsWith('"');
+        if (!chartCode) return chartCode;
 
-          if (hasDangerousChars && !isAlreadyQuoted) {
-            // First, convert any existing internal double quotes to single quotes
-            cleanText = cleanText.replace(/"/g, "'");
-            // Wrap in double quotes
-            return `${id}${openBracket}"${cleanText}"${closeBracket}`;
+        let result = chartCode;
+
+        // 1. Remove stray double-quotes that aren't inside node brackets.
+        //    AI often generates: -->"B(Process 1") instead of --> B["Process 1"]
+        result = result.split('\n').map(line => {
+          if (/^\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|gitGraph)\b/.test(line)) {
+            return line;
           }
-          return match;
+          return line.replace(/"/g, '');
+        }).join('\n');
+
+        // 2. Quote node labels that contain parentheses or special chars
+        //    e.g. B(Process 1) -> B["Process 1"] since () is a shape delimiter
+        result = result.replace(/([A-Za-z0-9_]+)\(([^)]*\s[^)]*)\)/g, (_match, id, text) => {
+          return `${id}["${text}"]`;
         });
+
+        // 3. Fix decision nodes with special chars
+        result = result.replace(/([A-Za-z0-9_]+)\{([^}]*[`"()][^}]*)\}/g, (_match, id, text) => {
+          const clean = text.replace(/"/g, "'");
+          return `${id}{"${clean}"}`;
+        });
+
+        return result;
       };
 
       try {
