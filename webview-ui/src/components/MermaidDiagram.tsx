@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Maximize2, Minimize2 } from 'lucide-react';
 
 interface MermaidDiagramProps {
   chart: string;
@@ -11,6 +11,7 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart }) => {
   const [svgContent, setSvgContent] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     mermaid.initialize({
@@ -107,22 +108,63 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart }) => {
   }
 
   return (
-    <div className="relative group my-6 rounded-lg border border-zinc-800/50 overflow-hidden">
-      <div className="bg-zinc-800/80 px-3 py-1.5 text-xs text-zinc-400 border-b border-zinc-700/50 flex justify-between items-center">
-        <span>mermaid</span>
-        <button
-          onClick={handleCopy}
-          className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/50 transition-colors"
-          title={copied ? 'Copied!' : 'Copy diagram source'}
-        >
-          {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-        </button>
+    <>
+      {isFullscreen && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex flex-col p-4 sm:p-8 animate-in fade-in duration-200">
+          <div className="flex justify-between items-center bg-zinc-900 border border-zinc-700/50 rounded-t-lg px-4 py-3">
+            <span className="text-zinc-300 font-medium">Mermaid Diagram (Fullscreen)</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCopy}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 transition-colors"
+              >
+                {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                {copied ? 'Copied' : 'Copy Source'}
+              </button>
+              <button
+                onClick={() => setIsFullscreen(false)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-zinc-300 hover:text-white bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 transition-colors"
+              >
+                <Minimize2 className="w-4 h-4" />
+                Close Fullscreen
+              </button>
+            </div>
+          </div>
+          <div 
+            className="flex-1 overflow-auto bg-zinc-950 border border-t-0 border-zinc-700/50 rounded-b-lg flex items-center justify-center p-8"
+            dangerouslySetInnerHTML={{ __html: svgContent }} 
+          />
+        </div>
+      )}
+      
+      <div className="relative group my-6 w-full max-w-full min-w-0 overflow-hidden rounded-lg border border-zinc-700/50 bg-zinc-900/10">
+        <div className="bg-zinc-800/80 px-3 py-1.5 text-xs text-zinc-400 border-b border-zinc-700/50 flex justify-between items-center w-full">
+          <span>mermaid</span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsFullscreen(true)}
+              className="p-1.5 rounded text-zinc-500 hover:text-indigo-300 hover:bg-indigo-500/10 transition-colors"
+              title="View fullscreen"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+            <div className="w-px h-4 bg-zinc-700 mx-1"></div>
+            <button
+              onClick={handleCopy}
+              className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/50 transition-colors"
+              title={copied ? 'Copied!' : 'Copy diagram source'}
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        </div>
+        <div 
+          ref={containerRef}
+          className="mermaid-diagram flex justify-center py-4 bg-zinc-900/30 overflow-x-auto w-full max-w-full min-w-0 print:hidden cursor-zoom-in"
+          onClick={() => setIsFullscreen(true)}
+          dangerouslySetInnerHTML={{ __html: svgContent }} 
+        />
       </div>
-      <div 
-        ref={containerRef}
-        className="mermaid-diagram flex justify-center py-4 bg-zinc-900/30 overflow-x-auto print:hidden"
-        dangerouslySetInnerHTML={{ __html: svgContent }} 
-      />
-    </div>
+    </>
   );
 };

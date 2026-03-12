@@ -941,7 +941,7 @@ export default function App() {
               key={idx} 
               id={`message-${idx}`}
               className={cn(
-                "flex w-full flex-col scroll-mt-24",
+                "flex w-full flex-col scroll-mt-24 min-w-0 break-words",
                 msg.role === 'user' ? "items-end" : "items-start"
               )}
             >
@@ -972,10 +972,10 @@ export default function App() {
               ) : (
                 <div 
                   className={cn(
-                    "max-w-[80%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed",
+                    "max-w-[85%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed overflow-hidden break-words min-w-0",
                     msg.role === 'user' 
                       ? "bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 rounded-br-sm" 
-                      : "bg-zinc-800/80 text-zinc-200 border border-zinc-700/50 rounded-bl-sm prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:m-0"
+                      : "bg-zinc-800/80 text-zinc-200 border border-zinc-700/50 rounded-bl-sm prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:m-0 w-full"
                   )}
                 >
                   {msg.role === 'model' && !msg.isError ? (

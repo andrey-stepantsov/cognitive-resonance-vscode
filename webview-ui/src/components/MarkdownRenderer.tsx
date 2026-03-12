@@ -69,8 +69,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
 
           if (match) {
             return (
-              <div className="rounded-md overflow-hidden my-4 border border-zinc-700/50">
-                 <div className="bg-zinc-800/80 px-3 py-1.5 text-xs text-zinc-400 border-b border-zinc-700/50 flex justify-between items-center">
+              <div className="rounded-md overflow-hidden my-4 border border-zinc-700/50 w-full max-w-full min-w-0">
+                 <div className="bg-zinc-800/80 px-3 py-1.5 text-xs text-zinc-400 border-b border-zinc-700/50 flex justify-between items-center w-full">
                    <span>{language}</span>
                    <CopyButton text={codeStr} />
                  </div>
