@@ -68,7 +68,7 @@ export const DissonanceMeter: React.FC<DissonanceMeterProps> = ({
       <div className="bg-zinc-950/50 border border-zinc-800/50 rounded-xl p-5 h-64 flex flex-col">
         <div className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-4">History</div>
         <div className="flex-1 w-full -ml-4">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
             <LineChart 
               data={history}
               onClick={(state) => {

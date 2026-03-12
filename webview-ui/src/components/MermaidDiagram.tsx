@@ -27,10 +27,30 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart }) => {
     const renderDiagram = async () => {
       if (!chart || chart.trim() === '') return;
       
+      const sanitizeMermaid = (chartCode: string): string => {
+        // Find Mermaid flowchart node definitions and ensure their inner labels are quoted 
+        // if they contain dangerous characters that ruin Mermaid parsing (e.g. backticks, parentheses)
+        const nodeRegex = /([A-Za-z0-9_-]+)(\[|\(|\{|\(\(|>|\])(.*?)(]|\)|\}|\)\)|])(?=[\s\n-]|$)/g;
+        return chartCode.replace(nodeRegex, (match, id, openBracket, innerText, closeBracket) => {
+          let cleanText = innerText.trim();
+          const hasDangerousChars = /[`()"]/.test(cleanText);
+          const isAlreadyQuoted = cleanText.startsWith('"') && cleanText.endsWith('"');
+
+          if (hasDangerousChars && !isAlreadyQuoted) {
+            // First, convert any existing internal double quotes to single quotes
+            cleanText = cleanText.replace(/"/g, "'");
+            // Wrap in double quotes
+            return `${id}${openBracket}"${cleanText}"${closeBracket}`;
+          }
+          return match;
+        });
+      };
+
       try {
         setError(null);
         const id = `mermaid-container-${Math.random().toString(36).substring(2, 9)}`;
-        const { svg } = await mermaid.render(id, chart);
+        const safeChart = sanitizeMermaid(chart);
+        const { svg } = await mermaid.render(id, safeChart);
         
         if (isMounted) {
           setSvgContent(svg);

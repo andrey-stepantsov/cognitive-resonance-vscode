@@ -358,7 +358,8 @@ function setupChatPanel(panel: vscode.WebviewPanel, context: vscode.ExtensionCon
             if (jsonStr) {
               try {
                   const data = typeof jsonStr === "string" ? JSON.parse(jsonStr) : jsonStr;
-                  panel.webview.postMessage({ type: 'response', data });
+                  const tokenUsage = response.usageMetadata?.totalTokenCount;
+                  panel.webview.postMessage({ type: 'response', data, usageMetadata: { totalTokenCount: tokenUsage } });
               } catch(e) {
                   console.error("Failed to parse JSON", jsonStr, e);
                   throw new Error("Failed to parse model response as JSON: " + jsonStr);

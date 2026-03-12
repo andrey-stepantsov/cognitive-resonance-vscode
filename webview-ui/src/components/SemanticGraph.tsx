@@ -36,7 +36,11 @@ export const SemanticGraph: React.FC<SemanticGraphProps> = ({ nodes, edges, onNo
 
     // Deep copy to avoid mutating props
     const graphNodes = nodes.map(d => ({ ...d }));
-    const graphEdges = edges.map(d => ({ ...d }));
+    
+    // Defensive Filter: Ensure all edges point to valid nodes to prevent D3 calculation crashes
+    const validNodeIds = new Set(graphNodes.map(n => n.id));
+    const validEdges = edges.filter(e => validNodeIds.has(e.source) && validNodeIds.has(e.target));
+    const graphEdges = validEdges.map(d => ({ ...d }));
 
     const simulation = d3.forceSimulation(graphNodes as any)
       .force("link", d3.forceLink(graphEdges).id((d: any) => d.id).distance(120))

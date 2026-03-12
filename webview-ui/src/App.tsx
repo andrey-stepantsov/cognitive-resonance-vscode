@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
-import { Send, BrainCircuit, Activity, Network, Loader2, X, Download, Copy, Check, AlertTriangle, Paperclip, FileText, Diamond, Plus, Trash2, Star, Edit3 } from 'lucide-react';
+import { Send, BrainCircuit, Activity, Network, Loader2, X, Download, Copy, Check, AlertTriangle, Paperclip, FileText, Diamond, Plus, Trash2, Star, Edit3, Database } from 'lucide-react';
 import { SemanticGraph, Node, Edge } from './components/SemanticGraph';
 import { DissonanceMeter } from './components/DissonanceMeter';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
@@ -51,6 +51,7 @@ interface InternalState {
   dissonanceReason: string;
   semanticNodes: Node[];
   semanticEdges: Edge[];
+  tokenUsage?: number;
 }
 
 export interface GemProfile {
@@ -298,7 +299,8 @@ export default function App() {
           dissonanceScore: data.dissonanceScore,
           dissonanceReason: data.dissonanceReason,
           semanticNodes: data.semanticNodes || [],
-          semanticEdges: data.semanticEdges || []
+          semanticEdges: data.semanticEdges || [],
+          tokenUsage: message.usageMetadata?.totalTokenCount
         };
 
         setMessages(prev => {
@@ -487,7 +489,28 @@ export default function App() {
       }))
     };
 
-    vscode.postMessage({ type: 'save_history', data: exportData });
+    try {
+      if (typeof vscode !== 'undefined') {
+        vscode.postMessage({ type: 'save_history', data: exportData });
+      } else {
+        throw new Error("VS Code API not available");
+      }
+    } catch (err) {
+      console.warn("Falling back to browser-native download:", err);
+      try {
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cognitive-resonance-history-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (fallbackErr) {
+        console.error("Browser fallback download failed", fallbackErr);
+      }
+    }
   };
 
   const handleLoadSession = (sessionId: string) => {
@@ -811,6 +834,12 @@ export default function App() {
             <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 rounded text-[10px] font-mono border border-zinc-700/50">
               v0.0.15
             </span>
+            {activeState?.tokenUsage && (
+              <span className="flex items-center gap-1.5 px-2 py-0.5 bg-indigo-500/10 text-indigo-300 rounded text-[10px] font-mono border border-indigo-500/20 shadow-[0_0_8px_rgba(99,102,241,0.15)] ml-2 transition-all">
+                <Database className="w-3 h-3 text-indigo-400" />
+                {activeState.tokenUsage.toLocaleString()} tokens
+              </span>
+            )}
           </h1>
         </div>
         <div className="flex items-center gap-2">
