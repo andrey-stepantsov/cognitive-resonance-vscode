@@ -43,6 +43,9 @@ function CopyButton({ text }: { text: string }) {
 }
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
+  // Normalize literal '\n' sequences that might have been double-escaped by the LLM JSON output
+  const normalizedContent = content.replace(/\\n/g, '\n');
+
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -93,7 +96,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
         }
       }}
     >
-      {content}
+      {normalizedContent}
     </ReactMarkdown>
   );
 };
