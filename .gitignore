@@ -3,3 +3,4 @@ dist/
 .vscode-test/
 .DS_Store
 *.vsix
+*.code-workspace
