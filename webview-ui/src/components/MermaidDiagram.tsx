@@ -33,23 +33,20 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart }) => {
 
         let result = chartCode;
 
-        // 1. Remove stray double-quotes that aren't inside node brackets.
-        //    AI often generates: -->"B(Process 1") instead of --> B["Process 1"]
-        result = result.split('\n').map(line => {
-          if (/^\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|gitGraph)\b/.test(line)) {
-            return line;
-          }
-          return line.replace(/"/g, '');
-        }).join('\n');
+        // 1. Remove stray double-quotes around arrow targets/sources.
+        //    AI often generates: -->"B(Process 1") or A --> "B"
+        //    But preserve valid quotes INSIDE brackets: A["Label"], B{"Choice"}
+        result = result.replace(/(-->|---|-\.-|==>)\s*"([^"]*?)"/g, '$1 $2');
+        result = result.replace(/"([^"]*?)"\s*(-->|---|-\.-|==>)/g, '$1 $2');
 
-        // 2. Quote node labels that contain parentheses or special chars
+        // 2. Quote node labels that contain parentheses with spaces
         //    e.g. B(Process 1) -> B["Process 1"] since () is a shape delimiter
         result = result.replace(/([A-Za-z0-9_]+)\(([^)]*\s[^)]*)\)/g, (_match, id, text) => {
           return `${id}["${text}"]`;
         });
 
-        // 3. Fix decision nodes with special chars
-        result = result.replace(/([A-Za-z0-9_]+)\{([^}]*[`"()][^}]*)\}/g, (_match, id, text) => {
+        // 3. Fix decision nodes with special chars that need quoting
+        result = result.replace(/([A-Za-z0-9_]+)\{([^}]*[`()][^}]*)\}/g, (_match, id, text) => {
           const clean = text.replace(/"/g, "'");
           return `${id}{"${clean}"}`;
         });
